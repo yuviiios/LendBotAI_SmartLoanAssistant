@@ -2,9 +2,6 @@
 
 A full-stack AI-assisted personal loan processing system with a conversational chat interface.
 
-## Live Demo
-- Frontend: https://loanchatbot.vercel.app/
-- Backend API: https://loanchatbot.onrender.com/docs
 
 ## What it does
 Users interact with a GPT-style chatbot that collects their PAN, monthly income, and loan amount conversationally. The backend runs a deterministic multi-agent pipeline — Sales → KYC → Credit → Sanction — and either approves the loan with an EMI breakdown and downloadable sanction letter, or rejects it with a clear reason.
