@@ -1,0 +1,15 @@
+/* FIX: removed body styles (place-items: center, background: #242424) that
+   conflicted with App.css full-screen layout. App.css handles all styling.
+   Keeping only font smoothing and base resets. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

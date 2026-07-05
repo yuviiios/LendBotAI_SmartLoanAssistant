@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: loanchatbot-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false           # set manually in Render dashboard
+      - key: ALLOWED_ORIGIN
+        sync: false           # set to your Vercel frontend URL
+      - key: REDIS_URL
+        fromService:
+          name: loanchatbot-redis
+          type: redis
+          property: connectionString   # Render injects this automatically
+
+databases:
+  - type: redis
+    name: loanchatbot-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru      # evict least-recently-used keys when full

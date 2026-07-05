@@ -1,0 +1,57 @@
+# =========================
+# Python-generated files
+# =========================
+__pycache__/
+*.py[oc]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Build files
+build/
+dist/
+wheels/
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+env/
+
+# =========================
+# Environment files
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Python / UV local files
+# =========================
+.python-version
+
+# =========================
+# Generated backend outputs
+# =========================
+backend/app/static/outputs/
+
+// check_model.py which I created to check the model which are ccurrently available in the gemini api. It is not used in the main code and is just for testing purposes. So, I have added it to the .gitignore file to avoid committing it to the repository.
+check_model.py
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
