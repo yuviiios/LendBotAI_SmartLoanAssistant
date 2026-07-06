@@ -1,0 +1,18 @@
+
+SANCTION LETTER
+===========================
+
+Sanction ID   : 521e9f28-85fa-4a5d-8cc6-e6a097ea13d0
+Sanction Date : 2026-07-06T15:21:05.012164+00:00
+
+Approved Loan Details
+---------------------
+Loan Amount   : Rs. 100,000.00
+Tenure        : 24 months
+Interest Rate : 14%
+EMI           : Rs. 9,500.00
+Credit Score  : 780
+
+This loan has been sanctioned based on automated credit assessment.
+
+-- AI Loan Processing System

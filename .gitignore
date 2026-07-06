@@ -1,9 +1,12 @@
 backend/.env
 backend/.env.local
 backend/__pycache__/
+backend/**/__pycache__/
 backend/*.pyc
 backend/venv/
 backend/.pytest_cache/
+backend/app/nlp/models/*.pkl
 frontend/node_modules/
 frontend/dist/
+frontend/.env.local
 .DS_Store

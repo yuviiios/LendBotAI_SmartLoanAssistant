@@ -7,17 +7,19 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: GEMINI_API_KEY
-        sync: false           # set manually in Render dashboard
+        sync: false
       - key: ALLOWED_ORIGIN
-        sync: false           # set to your Vercel frontend URL
+        sync: false
       - key: REDIS_URL
         fromService:
           name: loanchatbot-redis
           type: redis
-          property: connectionString   # Render injects this automatically
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: "3.11"
 
 databases:
   - type: redis
     name: loanchatbot-redis
     plan: free
-    maxmemoryPolicy: allkeys-lru      # evict least-recently-used keys when full
+    maxmemoryPolicy: allkeys-lru

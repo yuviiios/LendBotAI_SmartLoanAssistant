@@ -1,15 +1,19 @@
-# app/services/credit_score_service.py
+import hashlib
 
-#What will it do?
-#Given a PAN → return a credit score
-#No decision logic
 
 class CreditScoreService:
+    # Test PANs with fixed scores for deterministic test scenarios
+    FIXED_SCORES = {
+        "ABCDE1234F": 780,
+        "PQRSX9999Z": 720,
+        "LOWSC0000X": 650,
+    }
+
     async def get_score(self, pan: str) -> int:
-        # Mock implementation
-        scores = {
-            "ABCDE1234F": 780,
-            "PQRSX9999Z": 720,
-            "LOWSC0000X": 650,
-        }
-        return scores.get(pan, 700)
+        if pan in self.FIXED_SCORES:
+            return self.FIXED_SCORES[pan]
+
+        # Deterministic score from PAN hash: same PAN → same score always
+        # Range: 620-820 (realistic distribution)
+        hash_val = int(hashlib.sha256(pan.encode()).hexdigest(), 16)
+        return 620 + (hash_val % 201)  # 620 to 820
