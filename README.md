@@ -141,6 +141,50 @@ pytest tests/test_chat_agent.py -v  # Specific test file
 
 22 tests across 6 files covering agents, NLP, APIs, and full flows.
 
+## Loan Decision Logic
+
+**Eligibility rules (sequential):**
+
+1. **Credit Score Check**
+   - Score ≥750 → AUTO_APPROVE
+   - 700–749 → CONDITIONAL_APPROVE
+   - <700 → REJECT (low credit)
+
+2. **EMI Affordability**
+   - EMI = `loan_amount × r × (1+r)^n / ((1+r)^n - 1)`
+   - where r = interest_rate/12/100, n = tenure_months
+   - Max EMI: 50% of monthly income
+   - Fails → REJECT
+
+3. **Income Cap**
+   - Loan max 2× monthly income
+   - Fails → REJECT
+
+4. **Document Verification**
+   - KYC verified ✓
+   - Score 700–749 needs payslip
+   - Fails → HOLD or ESCALATE
+
+5. **Final Decision**
+   - Auto-approve if all pass
+   - Generates sanction letter + EMI breakdown
+
+**Example:** PAN=ABCDE1234F, income=₹50k, loan=₹5L, tenure=24mo
+- Score: 780 → AUTO_APPROVE
+- EMI: ₹23,114 (46% of income) → PASS
+- Income check: 5L < 2×50k → PASS
+- Docs: verified → PASS
+- Result: **SANCTIONED** ✓
+
+## Why Mock Services?
+
+Project uses mock `CRMService` + `CreditScoreService` (not real APIs) for:
+- **Dev speed:** No external dep setup, deterministic test data
+- **Testing:** Reproduce edge cases (low score, missing docs) reliably
+- **Demo safety:** No real financial data exposure
+
+Swap mocks for real APIs (Experian credit, NSDL KYC, bank core) by updating service classes.
+
 ## Project Status
 
 ✅ Multi-agent architecture with real-time agent collaboration
@@ -148,4 +192,5 @@ pytest tests/test_chat_agent.py -v  # Specific test file
 ✅ Real-time parameter validation
 ✅ Human-in-the-loop review before processing
 ✅ Sanction letter generation
-⏳ Real external APIs (mock services currently)
+✅ Deterministic loan logic (no LLM hallucination)
+⏳ Real external APIs (mock services for development)
