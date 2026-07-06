@@ -19,6 +19,7 @@ All loan logic is deterministic (no LLM in financial decisions). LLM only handle
 | Frontend | React 19, Vite |
 | Backend | FastAPI, Python 3.12 |
 | LLM | Google Gemini 1.5 Flash (conversation only) |
+| NLP | Intent Classification, Entity Extraction (PAN, income, loan amount, tenure) |
 | Storage | Redis (session state) |
 | Testing | pytest, pytest-asyncio |
 | Deployment | Render (backend), Vercel (frontend) |
