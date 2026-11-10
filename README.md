@@ -26,35 +26,27 @@ All loan logic is deterministic (no LLM in financial decisions). LLM only handle
 
 ## Architecture
 
-```
-┌─ Frontend (React) ─┐
-│  Chat Interface    │
-└────────┬───────────┘
-         │ /api/chat
-         ▼
-    FastAPI Router
-         │
-         ▼
-   ChatAgent (orchestrator)
-   State machine: PAN → Income → Loan → Tenure → Review → Process
-         │
-         ├─ Real-time checks:
-         │  ├── KYC: PAN format validation
-         │  └── Sales: loan parameter validation
-         │
-         ▼
-   MasterAgent (coordinates specialized agents)
-         │
-         ├── SalesAgent      → product info, loan validation
-         ├── KycAgent        → PAN verification, KYC checks
-         ├── CreditAgent     → credit score, EMI calc, eligibility
-         └── SanctionAgent   → sanction letter generation
-         │
-         ▼
-   External Services
-   ├── CRMService         → KYC data lookups
-   ├── CreditScoreService → credit score API
-   └── PDF Generator      → sanction letter files
+```mermaid
+flowchart TD
+    UI["React chat interface"] --> ChatAPI["FastAPI /api/chat"]
+    ChatAPI <--> Redis["Redis: application state + history"]
+    ChatAPI --> Chat["ChatAgent: conversation state machine"]
+    Chat --> Intent["TF-IDF + Logistic Regression"]
+    Chat --> Entities["Regex entity extraction"]
+    Chat --> Gemini["Gemini: wording + product answers"]
+    Chat --> Master["MasterAgent: coordination methods"]
+    DirectAPI["FastAPI /api/apply-loan"] --> Master
+
+    Master --> Sales["SalesAgent: product validation"]
+    Master --> KYC["KycAgent: identity/document checks"]
+    Master --> Credit["CreditAgent: EMI + eligibility rules"]
+    Master --> Sanction["SanctionAgent: text letter"]
+
+    KYC --> CRM["CRMService: deterministic mock"]
+    Credit --> Score["CreditScoreService: deterministic mock"]
+    Sanction --> Files["Local filesystem"]
+    Files --> Static["Public /static download"]
+    UI --> Static
 ```
 
 **Key flow:**
