@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.core.logger import StructuredLogger
 from app.dependencies import get_chat_agent, get_session_store
 from app.services.applications import load_application
+from app.services.customer_directory import SimulationProfile, use_profile
 from app.services.session_store import TurnConflict
 
 router = APIRouter()
@@ -16,6 +17,7 @@ logger = StructuredLogger("ChatTurns")
 
 
 class ChatRequest(BaseModel):
+    profile: SimulationProfile | None = None
     campaign: Literal["education", "travel", "personal loan"] | None = None
     session_id: str = Field(min_length=1, max_length=128)
     revision: int | None = Field(default=None, ge=0)
@@ -35,7 +37,15 @@ def chat(req: ChatRequest):
         state.setdefault("submission_key", str(uuid5(NAMESPACE_URL, f"{req.session_id}/{row['revision']}")))
         history = row["history"] + [{"role": "user", "content": req.message}]
         try:
-            result = asyncio.run(get_chat_agent().handle_message(req.message, state, history))
+            if req.profile:
+                if row["revision"] != 0:
+                    raise HTTPException(409, "Start a new chat to use a different customer profile.")
+                state.update(profile=req.profile.model_dump(), pan=req.profile.pan, stage="COLLECT_LOAN",
+                             monthly_income=req.profile.monthly_salary)
+                result = {"reply": "Your custom simulation is ready. How much would you like to borrow?", "state": state}
+            else:
+                with use_profile(state.get("profile")):
+                    result = asyncio.run(get_chat_agent().handle_message(req.message, state, history))
         except Exception:
             sessions.finish(req.session_id, owner)
             raise

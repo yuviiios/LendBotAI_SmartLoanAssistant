@@ -474,6 +474,8 @@ class ChatAgent:
         self, message: str, state: Dict[str, Any], entities: ExtractedEntities, history: List[Dict]
     ) -> Dict[str, Any]:
         if entities.pan:
+            if state.get("profile"):
+                return {"reply": "Your custom profile uses a generated demo PAN. Start a new chat to change profiles.", "state": state}
             for field in ("phone", "address", "application_id", "human_confirmed", "decision"):
                 state.pop(field, None)
             pan_check = self.master_agent.validate_pan(entities.pan)

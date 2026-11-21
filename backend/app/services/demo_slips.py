@@ -15,12 +15,16 @@ def sample_slip(customer_id):
     customer = next((c for c in customers_by_pan().values() if c.customer_id == customer_id), None)
     if customer is None:
         raise KeyError(customer_id)
+    return payroll_pdf(customer.name, customer_id, SALARIES[customer_id])
+
+
+def payroll_pdf(name, reference, salary):
     out = BytesIO()
     pdf = Canvas(out, invariant=True)
     pdf.setTitle("Synthetic monthly salary slip")
     pdf.drawString(55, 760, "Demonstration payroll | Monthly salary slip")
-    pdf.drawString(55, 710, f"Employee: {customer.name} ({customer.customer_id})")
-    pdf.drawString(55, 682, f"Net monthly salary: INR {SALARIES[customer_id]:,.2f}")
+    pdf.drawString(55, 710, f"Employee: {name} ({reference})")
+    pdf.drawString(55, 682, f"Net monthly salary: INR {salary:,.2f}")
     pdf.drawString(55, 620, "Synthetic document for the LendBot demo")
     pdf.save()
     return out.getvalue()

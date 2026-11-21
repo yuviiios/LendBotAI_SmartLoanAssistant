@@ -1,7 +1,7 @@
 from app.agents.loan_graph import compile_workflow
 from app.services.applications import open_application, save_decision
 from typing import Dict, Any
-from app.services.customer_directory import find_customer
+from app.services.customer_directory import active_profile, find_customer, use_profile
 from app.core.logger import StructuredLogger
 
 logger = StructuredLogger("MasterAgent")
@@ -72,6 +72,8 @@ class MasterAgent:
 
         inputs = dict(phone=phone, address=address, pan=pan.strip().upper(), loan_amount=loan_amount,
                       tenure_months=tenure_months, monthly_income=monthly_income)
+        if profile := active_profile.get():
+            inputs["profile"] = profile.model_dump()
         row = open_application(inputs, request_key)
         if row["decision"]:
             return row["decision"]
@@ -79,11 +81,15 @@ class MasterAgent:
 
     async def run_application(self, row, **evidence):
         digest = evidence.pop("slip_digest", None)
-        state = await self.workflow.ainvoke(dict(row["inputs"], application_id=row["id"], **evidence))
+        with use_profile(row["inputs"].get("profile")):
+            state = await self.workflow.ainvoke(dict(row["inputs"], application_id=row["id"], **evidence))
         decision = {"stage": state["stage"], "result": state["result"], "application_id": row["id"]}
         if state["result"].get("status") == "HOLD":
-            customer = find_customer(row["inputs"]["pan"])
-            decision["sample_slip_url"] = f"/api/mock/slips/{customer.customer_id}.pdf"
+            if row["inputs"].get("profile"):
+                decision["sample_slip_url"] = f"/api/applications/{row['id']}/sample-slip"
+            else:
+                customer = find_customer(row["inputs"]["pan"])
+                decision["sample_slip_url"] = f"/api/mock/slips/{customer.customer_id}.pdf"
         if digest:
             decision["slip_digest"] = digest
         pdf = self.sanction_agent.render_pdf(state["result"]) if state["stage"] == "SANCTION" else None
