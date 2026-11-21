@@ -1,59 +1,79 @@
-*,
-*::before,
-*::after {
+@import "@fontsource-variable/inter/index.css";
+* {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
-
 :root {
-  /* Groww-inspired Light Mode */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f4f5f7;
-  --bg-chat: #ffffff;
-  --bg-input: #f4f5f7;
-  --bg-user-msg: #00d09c;
-  --bg-bot-msg: #f4f5f7;
-  --text-primary: #1e2229;
-  --text-secondary: #6b7280;
-  --text-user-msg: #ffffff;
-  --text-bot-msg: #1e2229;
-  --border: #e8eaed;
-  --accent: #00d09c;
-  --accent-hover: #00b386;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  font-family: "Inter Variable", Inter, Arial, sans-serif;
+  color-scheme: light;
+  --page: #f6f6f2;
+  --paper: #fff;
+  --ink: #1c2831;
+  --navy: #112f49;
+  --sub: #586773;
+  --line: #d8dedf;
+  --wash: #f1f4f4;
+  --success: #126644;
+  --success-bg: #edf6f1;
+  --button: #133650;
 }
-
 [data-theme="dark"] {
-  --bg-primary: #0d1117;
-  --bg-secondary: #161b22;
-  --bg-chat: #0d1117;
-  --bg-input: #161b22;
-  --bg-user-msg: #00d09c;
-  --bg-bot-msg: #1c2128;
-  --text-primary: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-user-msg: #0d1117;
-  --text-bot-msg: #e6edf3;
-  --border: #30363d;
-  --accent: #00d09c;
-  --accent-hover: #00e6ac;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+  --page: #141e25;
+  --paper: #1d2932;
+  --ink: #eef3f6;
+  --navy: #d4e6f2;
+  --sub: #b3c1cb;
+  --line: #41515e;
+  --wash: #273641;
+  --success: #97deb8;
+  --success-bg: #1c392f;
+  --button: #224864;
 }
-
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.5;
+}
+button,
+input {
+  font: inherit;
+}
+button,
+a,
+input {
+  touch-action: manipulation;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+a {
+  color: var(--navy);
+  text-underline-offset: 3px;
+}
+button:focus-visible,
+input:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid #3786bd;
+  outline-offset: 3px;
+}
+h1,
+h2,
+h3,
+p,
+ol,
+dl,
+dd {
+  margin: 0;
+}
+button {
+  border-radius: 3px;
+}
+button:disabled {
+  opacity: 0.64;
 }
