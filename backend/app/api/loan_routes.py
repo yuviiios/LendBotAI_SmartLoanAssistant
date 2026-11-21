@@ -10,6 +10,8 @@ router = APIRouter()
 
 class LoanRequest(BaseModel):
     request_id: UUID | None = None
+    phone: str = ""
+    address: str = ""
     pan: str
     loan_amount: float = Field(gt=0, allow_inf_nan=False)
     tenure_months: int = Field(gt=0)
@@ -24,6 +26,7 @@ async def apply_loan(request: LoanRequest):
     try:
         result = await master_agent.process_loan_application(
             request_key=str(request.request_id) if request.request_id else None,
+            phone=request.phone, address=request.address,
             pan=request.pan,
             loan_amount=request.loan_amount,
             tenure_months=request.tenure_months,

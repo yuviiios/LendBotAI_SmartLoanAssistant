@@ -22,27 +22,34 @@ class KycAgent:
     def validate_pan_format(self, pan: str) -> Dict[str, Any]:
         pan = pan.strip().upper()
         if not PAN_REGEX.match(pan):
-            logger.info("PAN format invalid", pan=pan)
+            logger.info("PAN format invalid")
             return {
                 "status": "INVALID",
                 "reason": "PAN must be 10 characters: 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F)",
             }
-        logger.info("PAN format valid", pan=pan)
+        logger.info("PAN format valid")
         return {"status": "VALID", "pan": pan}
+
+    def verify_contact(self, pan: str, phone: str, address: str) -> bool:
+        record = self.crm_service.fetch_kyc(pan)
+        digits = re.sub(r"[\s()-]", "", phone).removeprefix("+91")
+        def normalize(text):
+            return " ".join(text.casefold().split())
+        return bool(record.get("phone") == digits and normalize(record.get("address", "")) == normalize(address))
 
     def verify_kyc(self, pan: str) -> Dict[str, Any]:
         kyc_data = self.crm_service.fetch_kyc(pan)
 
         if not kyc_data.get("kyc_verified"):
-            logger.info("KYC verification failed", pan=pan)
+            logger.info("KYC verification failed")
             return {"status": "FAILED", "reason": "KYC not verified"}
 
         documents = kyc_data.get("documents", {})
         missing_docs = [doc for doc, present in documents.items() if doc != "payslip" and not present]
 
         if missing_docs:
-            logger.info("KYC incomplete", pan=pan, missing=missing_docs)
+            logger.info("KYC incomplete", missing=missing_docs)
             return {"status": "INCOMPLETE", "missing_documents": missing_docs}
 
-        logger.info("KYC verified", pan=pan)
+        logger.info("KYC verified")
         return {"status": "VERIFIED", "documents": documents}

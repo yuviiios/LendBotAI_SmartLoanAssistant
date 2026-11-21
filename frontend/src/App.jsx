@@ -82,6 +82,8 @@ function App() {
         body: JSON.stringify({
           session_id: sessionId,
           message: input,
+          campaign: ["education", "travel"].includes(new URLSearchParams(location.search).get("campaign"))
+            ? new URLSearchParams(location.search).get("campaign") : null,
         }),
       });
 

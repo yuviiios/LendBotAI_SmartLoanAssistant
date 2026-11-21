@@ -59,6 +59,9 @@ class TestFullFlow:
 
         # Step 6: Human confirms
         result = await chat_agent.handle_message("yes", state, history)
+        assert result["state"]["stage"] == "COLLECT_PHONE"
+        result = await chat_agent.handle_message("0000000001", result["state"], history)
+        result = await chat_agent.handle_message("11 Demo Lane", result["state"], history)
         assert result["state"]["stage"] == "DONE"
         assert result["state"]["human_confirmed"] is True
 

@@ -65,3 +65,10 @@ def save_decision(row, decision, pdf=None):
         if changed.rowcount and pdf is not None:
             conn.execute(letters.insert().values(id=row["id"], pdf=pdf))
     return load_application(row["id"])["decision"]
+
+
+def cancel_pending(application_id):
+    row = load_application(application_id)
+    if row and row["decision"] and row["decision"]["result"]["status"] == "HOLD":
+        save_decision(row, {"application_id": application_id, "stage": "CREDIT",
+                            "result": {"status": "CANCELLED", "reason": "Customer changed or cancelled the application."}})

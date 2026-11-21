@@ -32,7 +32,7 @@ def test_apply_loan_happy_path():
     os.makedirs(STATIC_OUTPUT_DIR, exist_ok=True)
 
     payload = {
-        "pan": "ABCDE1234F",
+        "phone": "0000000001", "address": "11 Demo Lane", "pan": "ABCDE1234F",
         "loan_amount": 100000,
         "tenure_months": 24,
         "monthly_income": 60000,
@@ -84,7 +84,7 @@ def test_apply_loan_low_credit_score():
     os.makedirs(STATIC_OUTPUT_DIR, exist_ok=True)
 
     payload = {
-        "pan": "LOWSC0000X",
+        "phone": "0000000003", "address": "7 Model Street", "pan": "LOWSC0000X",
         "loan_amount": 100000,
         "tenure_months": 24,
         "monthly_income": 60000,
@@ -108,7 +108,7 @@ def test_apply_loan_invalid_amount():
     → SalesAgent rejects before KYC or credit runs.
     """
     payload = {
-        "pan": "ABCDE1234F",
+        "phone": "0000000001", "address": "11 Demo Lane", "pan": "ABCDE1234F",
         "loan_amount": 5000000,
         "tenure_months": 24,
         "monthly_income": 60000,

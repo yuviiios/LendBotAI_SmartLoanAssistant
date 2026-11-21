@@ -24,7 +24,7 @@ def test_mock_systems_share_customer_ids():
 
 def test_claimed_income_and_client_flag_cannot_skip_required_evidence():
     response = TestClient(app).post("/api/apply-loan", json={
-        "pan": "ABCDE1234F", "monthly_income": 999999, "loan_amount": 300000,
+        "phone": "0000000001", "address": "11 Demo Lane", "pan": "ABCDE1234F", "monthly_income": 999999, "loan_amount": 300000,
         "tenure_months": 24, "is_preapproved": True, "verified_monthly_salary": 999999,
     })
     assert response.status_code == 200
@@ -36,7 +36,7 @@ def test_claimed_income_and_client_flag_cannot_skip_required_evidence():
 @pytest.mark.asyncio
 async def test_chat_waits_for_evidence_instead_of_closing():
     chat = ChatAgent(get_master_agent(), Mock())
-    state = {"stage": "HUMAN_REVIEW", "pan": "ABCDE1234F", "monthly_income": 999999,
+    state = {"stage": "HUMAN_REVIEW", "phone": "0000000001", "address": "11 Demo Lane", "pan": "ABCDE1234F", "monthly_income": 999999,
              "loan_amount": 300000, "tenure_months": 24}
     result = await chat.handle_message("yes", state)
     assert result["state"]["stage"] == "AWAITING_SALARY_SLIP"

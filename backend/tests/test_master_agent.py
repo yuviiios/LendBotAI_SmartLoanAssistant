@@ -13,6 +13,7 @@ from app.agents.sanction_agent import SanctionAgent
 class MockCRMService:
     def fetch_kyc(self, pan: str):
         return {
+            "phone": "0000000001", "address": "11 Demo Lane",
             "kyc_verified": True,
             "documents": {
                 "payslip": True,
@@ -55,7 +56,7 @@ async def test_end_to_end_auto_approved_flow(master_agent):
     """
 
     result = await master_agent.process_loan_application(
-        pan="ABCDE1234F",
+        phone="0000000001", address="11 Demo Lane", pan="ABCDE1234F",
         loan_amount=100000,
         tenure_months=24,
         monthly_income=60000,
@@ -85,7 +86,7 @@ async def test_flow_stops_on_kyc_failure():
     )
 
     result = await master_agent.process_loan_application(
-        pan="BADKYC9999",
+        phone="0000000001", address="11 Demo Lane", pan="BADKYC9999",
         loan_amount=100000,
         tenure_months=24,
         monthly_income=60000,
@@ -113,7 +114,7 @@ async def test_flow_stops_on_credit_rejection():
     )
 
     result = await master_agent.process_loan_application(
-        pan="LOWSC0000X",
+        phone="0000000001", address="11 Demo Lane", pan="LOWSC0000X",
         loan_amount=100000,
         tenure_months=24,
         monthly_income=60000,

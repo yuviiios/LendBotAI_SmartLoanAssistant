@@ -7,6 +7,7 @@ class CRMService:
         if customer is None:
             return {"kyc_verified": False, "documents": {}}
         return {
+            "phone": customer.phone, "address": customer.address,
             "customer_id": customer.customer_id,
             "kyc_verified": True,
             "documents": {"aadhaar": True},

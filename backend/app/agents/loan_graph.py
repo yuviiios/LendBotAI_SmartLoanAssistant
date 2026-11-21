@@ -7,6 +7,8 @@ from app.services.customer_directory import find_customer
 
 class LoanState(TypedDict, total=False):
     application_id: str
+    phone: str
+    address: str
     pan: str
     loan_amount: float
     monthly_income: float
@@ -23,7 +25,11 @@ def compile_workflow(master):
             s["loan_amount"], s["tenure_months"], s["monthly_income"])}
 
     def kyc(s):
-        return {"stage": "KYC", "result": master.consult_kyc(s["pan"])}
+        result = master.consult_kyc(s["pan"])
+        if result["status"] == "VERIFIED" and not master.kyc_agent.verify_contact(
+                s["pan"], s.get("phone", ""), s.get("address", "")):
+            result = {"status": "FAILED", "reason": "Phone or address does not match the demo CRM."}
+        return {"stage": "KYC", "result": result}
 
     async def credit(s):
         if "previous_credit" in s:

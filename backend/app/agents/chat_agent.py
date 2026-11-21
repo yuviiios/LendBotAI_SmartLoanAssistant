@@ -1,4 +1,5 @@
 from app.services.applications import load_application
+import re
 from uuid import uuid4
 from typing import Dict, Any, List
 
@@ -134,7 +135,7 @@ class ChatAgent:
             stage=stage,
             intent=intent.value,
             confidence=round(confidence, 3),
-            entities=entities.raw_matches,
+            entity_types=list(entities.raw_matches),
         )
 
         # Track which agents participated
@@ -143,6 +144,50 @@ class ChatAgent:
         # =====================================================
         # GLOBAL INTENTS (handle regardless of stage)
         # =====================================================
+
+        if message.strip().lower() in ("cancel", "stop", "no thanks", "cancel application") and stage != "DONE":
+            from app.services.applications import cancel_pending
+            if state.get("application_id"):
+                cancel_pending(state["application_id"])
+            state.clear()
+            state["stage"] = "CANCELLED"
+            return {"reply": "Your application is closed. You can start a new chat whenever you wish.", "state": state}
+        if stage == "CANCELLED":
+            return {"reply": "This application is closed. Select New Chat to start again.", "state": state}
+
+        if stage == "COLLECT_PHONE" and intent != Intent.ASK_QUESTION:
+            digits = re.sub(r"[\s()-]", "", message).removeprefix("+91")
+            if not (digits.isdigit() and len(digits) == 10):
+                return {"reply": "Please enter the ten-digit phone on your demo CRM profile.", "state": state}
+            state.update(phone=digits, stage="COLLECT_ADDRESS")
+            return {"reply": "What street address is registered on that profile?", "state": state}
+
+        if stage == "COLLECT_ADDRESS" and intent != Intent.ASK_QUESTION:
+            if not self.master_agent.kyc_agent.verify_contact(state["pan"], state["phone"], message):
+                state.update(stage="COLLECT_PHONE")
+                return {"reply": "Those details do not match the CRM. Let's try your registered phone again.", "state": state}
+            state.update(address=message.strip(), stage="PROCESSING")
+            return await self.handle_message("", state, history)
+
+        if stage == "COLLECT_PAN" and not entities.pan and intent != Intent.ASK_QUESTION:
+            if not message.strip() or intent == Intent.GREETING:
+                context = state.get("campaign") or "personal loan"
+                return {"reply": f"Welcome! What would you like to fund with your {context} offer, and how much do you need? You can also start with your demo PAN.", "state": state}
+            # A monthly-payment target is a separate monetary field from principal.
+            budget = re.search(r"(?:emi|monthly payment|monthly instalment)\s*(?:under|below|of|around|up to)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(k)?\b", message, re.I)
+            if budget:
+                state["target_emi"] = float(budget[1].replace(",", "")) * (1000 if budget[2] else 1)
+                entities = self.entity_extractor.extract(message[:budget.start()] + message[budget.end():])
+            state["purpose"] = message[:200]
+            if entities.amount and self.master_agent.validate_loan_params(entities.amount, 24)["status"] == "VALID":
+                state["requested_amount"] = entities.amount
+            if entities.tenure_months and 6 <= entities.tenure_months <= 60:
+                state["requested_tenure"] = entities.tenure_months
+            return {"reply": "I can compare repayment options for you. What is your demo PAN?", "state": state}
+
+        if stage in ("HUMAN_REVIEW", "COLLECT_TENURE") and entities.tenure_months and "what if" in message.lower():
+            return {"reply": self._quote(state["loan_amount"], entities.tenure_months) +
+                    " To select it, say 'change to that tenure' with the number of months.", "state": state}
 
         if intent == Intent.FRUSTRATED:
             base = (
@@ -178,9 +223,11 @@ class ChatAgent:
             )
             return {"reply": self._llm_rephrase(base, history), "state": state}
 
-        if intent == Intent.MODIFY:
+        if intent == Intent.MODIFY and stage != "DONE":
             state.pop("submission_key", None)
             if stage == "AWAITING_SALARY_SLIP":
+                from app.services.applications import cancel_pending
+                cancel_pending(state.pop("application_id"))
                 state.pop("decision", None)
                 state.pop("human_confirmed", None)
                 state["stage"] = "HUMAN_REVIEW"
@@ -236,7 +283,7 @@ class ChatAgent:
                 if "KYC" not in agents_consulted:
                     agents_consulted.append("KYC")
                 state["agents_consulted"] = agents_consulted
-                base = f"✓ PAN {pan_check['pan']} verified. Could you please share your monthly income?"
+                base = "Thanks. What is your monthly income?"
             else:
                 base = "Please provide your PAN card number. It should be in the format ABCDE1234F."
 
@@ -249,6 +296,9 @@ class ChatAgent:
             income = entities.income or entities.amount
             if income:
                 state["monthly_income"] = income
+                if state.get("requested_amount"):
+                    state["stage"] = "COLLECT_LOAN"
+                    return await self.handle_message(str(state.pop("requested_amount")), state, history)
                 state["stage"] = "COLLECT_LOAN"
                 if "SALES" not in agents_consulted:
                     agents_consulted.append("SALES")
@@ -280,7 +330,17 @@ class ChatAgent:
                 if "SALES" not in agents_consulted:
                     agents_consulted.append("SALES")
                 state["agents_consulted"] = agents_consulted
-                reply = f"Noted — ₹{loan:,.0f}. For how many months or years would you like the loan?"
+                if state.get("requested_tenure"):
+                    return await self.handle_message(f"{state.pop('requested_tenure')} months", state, history)
+                target = state.get("target_emi")
+                recommendation = ""
+                if target:
+                    affordable = next((n for n in range(6, 61)
+                                       if self.master_agent.credit_agent.calculate_emi(loan, 14, n) <= target), None)
+                    recommendation = ("\nShortest option within your monthly target: " + self._quote(loan, affordable)
+                                      if affordable else "\nEven 60 months exceeds your target. You can reduce the amount.")
+                reply = (self._quote(loan, 24) + "\n" + self._quote(loan, 36) + recommendation +
+                         "\nWhich tenure works for you? You can choose 6 to 60 months.")
             else:
                 reply = self._llm_rephrase(
                     "Please tell me the loan amount you need, for example 3 lakhs or 300000.",
@@ -327,6 +387,9 @@ class ChatAgent:
             if intent == Intent.CONFIRM or entities.confirmation is True:
                 state["stage"] = "PROCESSING"
                 state["human_confirmed"] = True
+                if not state.get("phone") or not state.get("address"):
+                    state["stage"] = "COLLECT_PHONE"
+                    return {"reply": "To verify your identity, what phone is registered on your demo CRM profile?", "state": state}
                 stage = "PROCESSING"
             elif intent == Intent.DENY or entities.confirmation is False:
                 state.pop("human_confirmed", None)
@@ -348,6 +411,7 @@ class ChatAgent:
             try:
                 decision = await self.master_agent.process_loan_application(
                     request_key=state.setdefault("submission_key", str(uuid4())),
+                    phone=state.get("phone", ""), address=state.get("address", ""),
                     pan=state["pan"], loan_amount=state["loan_amount"],
                     monthly_income=state["monthly_income"], tenure_months=state["tenure_months"],
                 )
@@ -385,6 +449,12 @@ class ChatAgent:
     # -----------------------------
     # Human-in-the-loop summary
     # -----------------------------
+    def _quote(self, amount, months):
+        if not 6 <= months <= 60:
+            return "Available tenures are 6 to 60 months."
+        emi = self.master_agent.credit_agent.calculate_emi(amount, 14, months)
+        return f"{months} months at 14%: EMI ₹{emi:,.2f}, total instalments ₹{emi * months:,.2f} before fees."
+
     def _show_review_summary(self, state: Dict[str, Any], history: List[Dict]) -> Dict[str, Any]:
         pan = state.get("pan", "N/A")
         income = state.get("monthly_income", 0)
@@ -413,6 +483,8 @@ class ChatAgent:
         self, message: str, state: Dict[str, Any], entities: ExtractedEntities, history: List[Dict]
     ) -> Dict[str, Any]:
         if entities.pan:
+            for field in ("phone", "address", "application_id", "human_confirmed", "decision"):
+                state.pop(field, None)
             pan_check = self.master_agent.validate_pan(entities.pan)
             if pan_check["status"] == "INVALID":
                 return {"reply": f"⚠️ {pan_check['reason']}", "state": state}

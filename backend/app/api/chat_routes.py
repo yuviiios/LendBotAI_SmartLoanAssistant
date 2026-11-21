@@ -1,3 +1,4 @@
+from typing import Literal
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -7,6 +8,7 @@ router = APIRouter()
 
 
 class ChatRequest(BaseModel):
+    campaign: Literal["education", "travel", "personal loan"] | None = None
     session_id: str
     message: str
 
@@ -17,6 +19,9 @@ async def chat(req: ChatRequest):
     chat_agent = get_chat_agent()
 
     state = sessions.get(req.session_id) or {}
+
+    if req.campaign and not state:
+        state["campaign"] = req.campaign
 
     # Store user message in conversation history
     sessions.append_message(req.session_id, "user", req.message)

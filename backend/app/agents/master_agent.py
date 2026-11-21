@@ -28,7 +28,7 @@ class MasterAgent:
         )
 
     def consult_kyc(self, pan: str) -> Dict[str, Any]:
-        logger.info("KYC agent consulted", pan=pan)
+        logger.info("KYC agent consulted")
         return self.kyc_agent.verify_kyc(pan)
 
     async def consult_credit(self, pan: str, loan_amount: float, tenure: int) -> dict:
@@ -67,9 +67,10 @@ class MasterAgent:
         monthly_income: float,
         is_preapproved: bool = False,
         request_key: str | None = None,
+        phone: str = "", address: str = "",
     ) -> Dict[str, Any]:
 
-        inputs = dict(pan=pan.strip().upper(), loan_amount=loan_amount,
+        inputs = dict(phone=phone, address=address, pan=pan.strip().upper(), loan_amount=loan_amount,
                       tenure_months=tenure_months, monthly_income=monthly_income)
         row = open_application(inputs, request_key)
         if row["decision"]:

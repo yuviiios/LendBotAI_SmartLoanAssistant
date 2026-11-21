@@ -7,7 +7,7 @@ from app.main import app
 
 def test_upload_resumes_once_and_returns_a_pdf():
     client = TestClient(app)
-    req = {"pan": "ABCDE1234F", "loan_amount": 300000, "monthly_income": 40000,
+    req = {"phone": "0000000001", "address": "11 Demo Lane", "pan": "ABCDE1234F", "loan_amount": 300000, "monthly_income": 40000,
            "tenure_months": 24, "request_id": str(uuid4())}
     first = client.post("/api/apply-loan", json=req).json()["data"]
     url = f"/api/applications/{first['application_id']}"
@@ -29,7 +29,7 @@ def test_upload_resumes_once_and_returns_a_pdf():
 
 def test_unaffordable_verified_salary_issues_no_letter():
     client = TestClient(app)
-    data = client.post("/api/apply-loan", json={"pan": "PQRSX9999Z", "loan_amount": 140000,
+    data = client.post("/api/apply-loan", json={"phone": "0000000002", "address": "24 Sample Road", "pan": "PQRSX9999Z", "loan_amount": 140000,
                        "monthly_income": 200000, "tenure_months": 12}).json()["data"]
     url = f"/api/applications/{data['application_id']}"
     slip = client.get("/api/mock/slips/C002.pdf").content
