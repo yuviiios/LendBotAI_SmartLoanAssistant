@@ -518,3 +518,19 @@ footer {
     font-size: 13px;
   }
 }
+
+.profile-form { color: var(--ink); }
+.profile-form p { color: var(--sub); font-size: 0.88rem; }
+.profile-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.profile-fields input {
+  width: 100%;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 8px;
+}

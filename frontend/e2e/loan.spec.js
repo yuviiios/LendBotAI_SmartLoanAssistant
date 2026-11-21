@@ -52,6 +52,27 @@ test("instant approval", async ({page}) => {
   await expect(page.getByRole("link", {name: "Download Letter"})).toBeVisible();
 });
 
+test("custom profile creates its own offer and sanction letter", async ({page}) => {
+  await page.goto("/");
+  await page.getByRole("button", {name: "Use my own profile"}).click();
+  for (const [label, value] of [
+    ["Applicant name", "Sample Applicant"], ["Demo phone", "0000000012"],
+    ["Demo street address", "12 Sample Road"], ["Monthly take-home salary", "65000"],
+    ["Simulated credit score", "715"], ["Simulated pre-approved limit", "110000"],
+  ]) {
+    await page.getByLabel(label).fill(value);
+  }
+  await page.getByRole("button", {name: "Start custom application"}).click();
+  await expect(page.locator(".message.bot").last()).toContainText("How much");
+  await say(page, "105000", "36 months");
+  await say(page, "24 months", "Application Summary");
+  await say(page, "yes", "phone");
+  await say(page, "0000000012", "street address");
+  await say(page, "12 Sample Road", "approved");
+  await page.reload();
+  await expect(page.getByRole("link", {name: "Download Letter"})).toBeVisible();
+});
+
 test("low score rejection", async ({page}) => {
   await apply(page, {pan: "LOWSC0000X", amount: "100000", phone: "0000000003",
     address: "7 Model Street", expected: "below 700"});

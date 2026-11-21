@@ -10,6 +10,8 @@ Watch the [recorded browser walkthrough](docs/LendBot-demo.mp4) for the complete
 
 ## Demo journey
 
+For a custom simulation, open a new chat and select **Use my own profile**. Enter a fictional name, phone, address, payroll salary, credit score and offer limit. Choose the amount and tenure in chat, then confirm the phone and address you entered. The simulation uses the same underwriting rules as the preset profiles. If it requests evidence, download and upload the payslip generated for that application. No personal identity document is needed.
+
 1. Say **Hello**, then **I need 300000 for course fees**.
 2. Use demo PAN **ABCDE1234F** and monthly income **60000**. Compare the 24- and 36-month quotes. Select **24 months** and confirm with **yes**.
 3. Enter registered phone **0000000001** and address **11 Demo Lane**.

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import CustomProfile from "./CustomProfile";
 import ApplicationPanel from "./ApplicationPanel";
 import { applicationView } from "./applicationView";
 import "./App.css";
@@ -7,6 +8,8 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 
 function App() {
   const [messages, setMessages] = useState([]);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileError, setProfileError] = useState("");
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState(
     () => sessionStorage.getItem("lendbot-session") || crypto.randomUUID(),
@@ -116,11 +119,12 @@ function App() {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   }
 
-  async function sendMessage(message = input) {
+  async function sendMessage(message = input, profile = null) {
     if (!message.trim() || isLoading) return;
 
     const userMessage = { role: "user", text: message };
-    setMessages((prev) => [...prev, userMessage]);
+    if (!profile) setMessages((prev) => [...prev, userMessage]);
+    setProfileError("");
     setInput("");
     setIsLoading(true);
 
@@ -130,6 +134,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_id: sessionId,
+          ...(profile ? { profile } : {}),
           revision: revision.current,
           message,
           campaign: ["education", "travel"].includes(
@@ -145,12 +150,16 @@ function App() {
         throw new Error(
           typeof data.detail === "string"
             ? data.detail
-            : "Chat request failed.",
+            : profile && response.status === 422
+              ? "Check the profile details. Enter a name, a street address and valid numbers."
+              : "Chat request failed.",
         );
       revision.current = data.revision;
+      setShowProfile(false);
 
       setMessages((prev) => [
         ...prev,
+        ...(profile ? [userMessage] : []),
         { role: "bot", text: data.reply || "Something went wrong." },
       ]);
 
@@ -169,13 +178,16 @@ function App() {
         setSanctionUrl(data.sanction_letter_url);
       }
     } catch (error) {
-      setMessages((prev) => [...prev, { role: "bot", text: error.message }]);
+      if (profile) setProfileError(error.message);
+      else setMessages((prev) => [...prev, { role: "bot", text: error.message }]);
     } finally {
       setIsLoading(false);
     }
   }
 
   function resetChat() {
+    setShowProfile(false);
+    setProfileError("");
     sessionStorage.removeItem("lendbot-view-" + sessionId);
     setView(applicationView());
     setMessages([]);
@@ -257,10 +269,16 @@ function App() {
                   eligibility.
                 </p>
               </div>
-              {!messages.length && (
+              {showProfile && (
+                <CustomProfile busy={isLoading} error={profileError}
+                  onStart={(profile) => sendMessage("Start my custom simulation", profile)}
+                  onCancel={() => setShowProfile(false)} />
+              )}
+              {!messages.length && !showProfile && (
                 <div className="starters">
+                  <button disabled={isLoading} onClick={() => setShowProfile(true)}>Use my own profile</button>
                   {[
-                    ["Explore loan options", "Hello"],
+                    ["Use a demo customer", "Hello"],
                     ["Check interest rates", "What is the interest rate?"],
                     [
                       "Compare repayments",
@@ -339,9 +357,9 @@ function App() {
                 placeholder="Type your message..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || showProfile}
               />
-              <button type="submit" disabled={isLoading || !input.trim()}>
+              <button type="submit" disabled={showProfile || isLoading || !input.trim()}>
                 Send <span aria-hidden="true">↑</span>
               </button>
             </form>

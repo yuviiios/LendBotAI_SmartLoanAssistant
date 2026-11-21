@@ -5,7 +5,7 @@ for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     await expect(
-      page.getByRole("button", { name: "Explore loan options" }),
+      page.getByRole("button", { name: "Use a demo customer" }),
     ).toBeEnabled();
     await page.evaluate(() => document.fonts.ready);
     await expect(
@@ -18,7 +18,7 @@ for (const width of [390, 1280]) {
       path: info.outputPath("workspace.png"),
       fullPage: true,
     });
-    await page.getByRole("button", { name: "Explore loan options" }).click();
+    await page.getByRole("button", { name: "Use a demo customer" }).click();
     await expect(page.locator(".message.bot").last()).toContainText("PAN");
   });
 }
