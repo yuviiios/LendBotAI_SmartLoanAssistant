@@ -12,5 +12,6 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def temporary_letters(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///" + (tmp_path / "applications.db").as_posix())
     from app.agents.sanction_agent import SanctionAgent
     monkeypatch.setattr(SanctionAgent, "OUTPUT_DIR", str(tmp_path))

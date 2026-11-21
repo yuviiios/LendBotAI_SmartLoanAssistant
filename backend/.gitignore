@@ -55,3 +55,4 @@ check_model.py
 # =========================
 .DS_Store
 Thumbs.db
+lendbot.db*

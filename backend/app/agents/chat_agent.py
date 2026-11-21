@@ -1,3 +1,4 @@
+from uuid import uuid4
 from typing import Dict, Any, List
 
 from app.nlp.intent_classifier import IntentClassifier, Intent
@@ -169,6 +170,7 @@ class ChatAgent:
             return {"reply": self._llm_rephrase(base, history), "state": state}
 
         if intent == Intent.MODIFY:
+            state.pop("submission_key", None)
             if stage == "AWAITING_SALARY_SLIP":
                 state.pop("decision", None)
                 state.pop("human_confirmed", None)
@@ -336,6 +338,7 @@ class ChatAgent:
 
             try:
                 decision = await self.master_agent.process_loan_application(
+                    request_key=state.setdefault("submission_key", str(uuid4())),
                     pan=state["pan"], loan_amount=state["loan_amount"],
                     monthly_income=state["monthly_income"], tenure_months=state["tenure_months"],
                 )
@@ -344,6 +347,7 @@ class ChatAgent:
                         agents_consulted.append(worker)
                     if worker == decision["stage"]:
                         break
+                state["application_id"] = decision["application_id"]
                 state["decision"] = decision
                 state["agents_consulted"] = agents_consulted
                 if decision["result"].get("status") == "HOLD":

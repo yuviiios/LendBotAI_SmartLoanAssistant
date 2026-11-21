@@ -1,3 +1,5 @@
+from app.agents.loan_graph import compile_workflow
+from app.services.applications import open_application, save_decision
 from typing import Dict, Any
 from app.services.customer_directory import find_customer
 from app.core.logger import StructuredLogger
@@ -11,6 +13,7 @@ class MasterAgent:
         self.kyc_agent = kyc_agent
         self.credit_agent = credit_agent
         self.sanction_agent = sanction_agent
+        self.workflow = compile_workflow(self)
 
     # ----------------------------------------------------------
     # Stage-by-stage methods — called by ChatAgent at each step
@@ -63,28 +66,17 @@ class MasterAgent:
         tenure_months: int,
         monthly_income: float,
         is_preapproved: bool = False,
+        request_key: str | None = None,
     ) -> Dict[str, Any]:
 
-        # --- 1. Sales ---
-        loan_request = self.consult_sales(loan_amount, tenure_months, monthly_income)
+        inputs = dict(pan=pan.strip().upper(), loan_amount=loan_amount,
+                      tenure_months=tenure_months, monthly_income=monthly_income)
+        row = open_application(inputs, request_key)
+        if row["decision"]:
+            return row["decision"]
+        return await self.run_application(row)
 
-        if loan_request.get("status") == "REJECT":
-            return {"stage": "SALES", "result": loan_request}
-
-        # --- 2. KYC ---
-        kyc_result = self.consult_kyc(pan)
-
-        if kyc_result["status"] in ("FAILED", "INCOMPLETE"):
-            return {"stage": "KYC", "result": kyc_result}
-
-        credit_decision = await self.consult_credit(
-            pan, loan_request["loan_amount"], loan_request["tenure_months"]
-        )
-
-        if credit_decision["status"] not in ("AUTO_APPROVE", "CONDITIONAL_APPROVE"):
-            return {"stage": "CREDIT", "result": credit_decision}
-
-        # --- 4. Sanction ---
-        sanction_result = self.consult_sanction(credit_decision)
-
-        return {"stage": "SANCTION", "result": sanction_result}
+    async def run_application(self, row, **evidence):
+        state = await self.workflow.ainvoke(dict(row["inputs"], application_id=row["id"], **evidence))
+        decision = {"stage": state["stage"], "result": state["result"], "application_id": row["id"]}
+        return save_decision(row, decision)

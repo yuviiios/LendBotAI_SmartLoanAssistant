@@ -1,4 +1,5 @@
-from fastapi import APIRouter
+from uuid import UUID
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.schemas.api_response import APIResponse, APIError
@@ -8,6 +9,7 @@ router = APIRouter()
 
 
 class LoanRequest(BaseModel):
+    request_id: UUID | None = None
     pan: str
     loan_amount: float = Field(gt=0, allow_inf_nan=False)
     tenure_months: int = Field(gt=0)
@@ -19,15 +21,19 @@ class LoanRequest(BaseModel):
 async def apply_loan(request: LoanRequest):
     master_agent = get_master_agent()
 
-    result = await master_agent.process_loan_application(
-        pan=request.pan,
-        loan_amount=request.loan_amount,
-        tenure_months=request.tenure_months,
-        monthly_income=request.monthly_income,
-    )
+    try:
+        result = await master_agent.process_loan_application(
+            request_key=str(request.request_id) if request.request_id else None,
+            pan=request.pan,
+            loan_amount=request.loan_amount,
+            tenure_months=request.tenure_months,
+            monthly_income=request.monthly_income,
+        )
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
     stage = result.get("stage")
-    payload = result.get("result")
+    payload = dict(result["result"], application_id=result["application_id"])
 
     if payload.get("status") == "HOLD":
         return APIResponse(status="PENDING", stage=stage, data=payload, error=None)
