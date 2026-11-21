@@ -17,7 +17,7 @@ export default defineConfig({
     { command: '"' + python + '" -m uvicorn app.main:app --host 127.0.0.1 --port 8019',
       cwd: "../backend", url: "http://127.0.0.1:8019/health", timeout: 90000,
       env: { DATABASE_URL: "sqlite:///" + join(directory, "applications.db").replaceAll("\\", "/"),
-        REDIS_URL: "", GEMINI_API_KEY: "", ALLOWED_ORIGIN: "http://127.0.0.1:5181" } },
+        LEGACY_REDIS_URL: "", GEMINI_API_KEY: "", ALLOWED_ORIGIN: "http://127.0.0.1:5181" } },
     { command: "npm run dev -- --host 127.0.0.1 --port 5181 --strictPort", url: "http://127.0.0.1:5181",
       env: { VITE_API_URL: "http://127.0.0.1:8019" } }
   ]

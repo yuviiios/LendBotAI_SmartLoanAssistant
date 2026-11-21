@@ -28,7 +28,7 @@ class SessionStore:
         if row:
             return dict(row)
         state, history = {}, []
-        if url := os.getenv("REDIS_URL"):
+        if url := os.getenv("LEGACY_REDIS_URL"):
             # Import still-active sessions from the previous Redis-only release.
             client = redis.from_url(url, socket_timeout=2, socket_connect_timeout=2)
             try:

@@ -35,7 +35,7 @@ FastAPI serves interactive contracts at `/docs`. The mock systems are at `/api/m
 - Browser: from `frontend`, run `npm run test:e2e` with Chrome installed. The suite starts isolated local servers and a temporary SQLite database. Set `LENDBOT_PYTHON` to the Python interpreter with backend dependencies if needed.
 - Recording: run `npx playwright install ffmpeg`, set `RECORD_DEMO=1`, and run the browser suite. Videos are written to `frontend/test-results`.
 
-For hosting, set frontend build variable `VITE_API_URL` to the backend origin, backend `ALLOWED_ORIGIN` to the frontend origin, and `DATABASE_URL` to a persistent PostgreSQL database shared by all replicas. A legacy `REDIS_URL` is optional for importing active sessions from earlier versions. Configure it only during that migration.
+For hosting, set frontend build variable `VITE_API_URL` to the backend origin, backend `ALLOWED_ORIGIN` to the frontend origin, and `DATABASE_URL` to a persistent PostgreSQL database shared by all replicas. A legacy `LEGACY_REDIS_URL` is optional for importing active sessions from earlier versions. Configure it only during that migration.
 
 ## Concurrency checks
 

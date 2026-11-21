@@ -31,7 +31,7 @@ def test_parallel_submissions_issue_one_document():
 
 
 def test_two_tabs_cannot_advance_the_same_revision_twice(monkeypatch):
-    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("LEGACY_REDIS_URL", raising=False)
     session_id = str(uuid4())
     barrier = Barrier(2)
 
@@ -48,7 +48,7 @@ def test_two_tabs_cannot_advance_the_same_revision_twice(monkeypatch):
 
 
 def test_parallel_independent_conversations(monkeypatch):
-    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("LEGACY_REDIS_URL", raising=False)
     get_chat_agent()
     def send(_):
         start = perf_counter()
