@@ -1,50 +1,50 @@
 # LendBot AI
 
-A synthetic personal loan sales demo built with React, FastAPI and LangGraph. The Master coordinates Sales, Verification, Credit and Sanction workers. Customers can compare instalments, confirm terms, verify their demo CRM details and download a PDF sanction letter.
+LendBot simulates a personal loan application for an Indian NBFC. In one chat, a customer can compare monthly instalments (EMIs), confirm loan terms, complete simulated KYC and download a PDF sanction letter if approved.
+
+[Try the live chatbot](https://loan-chatbot-nine.vercel.app/) · [Watch the demo](docs/LendBot-demo.mp4)
+
+## Try an application
+
+- **Use a demo customer** to try one of [10 preset profiles](backend/app/services/customers.csv). For a salary-slip example, request ₹3,00,000 with PAN `ABCDE1234F`, monthly income ₹60,000 and a 24-month tenure. Confirm phone `0000000001` and address `11 Demo Lane`, then download and upload the sample payslip.
+- **Use my own profile** to enter a fictional name, phone, address, salary, credit score and pre-approved limit. Use those contact details again when prompted for KYC. Both paths use the same lending rules.
+
+## Architecture and stack
+
+**React chat (Vite, Vercel) → FastAPI (Python, Render) → Master Agent (LangGraph) → Sales → KYC → Credit → Sanction PDF**
+
+Sales checks the amount and tenure. KYC matches contact details against the simulated CRM. Credit evaluates the simulated bureau score and offer limit. The Sanction worker generates approved letters with ReportLab. SQLAlchemy stores chat history, decisions and PDFs in SQLite locally, with PostgreSQL supported for shared deployments.
+
+Scikit-learn classifies chat intent. Gemini is optional for conversational wording. The underwriting rules run in Python.
+
+| After KYC, apply the first matching rule | Outcome |
+| --- | --- |
+| Score below 700/900 or amount above 2× the limit | Reject |
+| Amount within the pre-approved limit | Approve |
+| Amount above the limit and up to 2× the limit | Request a sample payslip. Approve if EMI is at most 50% of verified salary. Otherwise reject. |
 
 ## Run locally
 
-Use Python 3.11+ and Node 22. From `backend`, create a virtual environment, install dependencies with `python -m pip install -r requirements.txt`, copy `.env.example` to `.env`, and run `python -m uvicorn app.main:app --port 8000`. From `frontend`, run `npm ci` and `npm run dev`. Open `http://localhost:5173/?campaign=education`. The default SQLite database persists across process restarts. A Gemini key enables optional model wording. The local demo works with the key empty.
+Use Python 3.11 and Node.js 22. Run these commands in **two PowerShell terminals**, starting at the repository root.
 
-Watch the [recorded browser walkthrough](docs/LendBot-demo.mp4) for the complete journey, the generated PDF and two alternative decisions.
+**Backend**
 
-## Demo journey
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+.\.venv\Scripts\python -m uvicorn app.main:app --port 8000
+```
 
-For a custom simulation, open a new chat and select **Use my own profile**. Enter a fictional name, phone, address, payroll salary, credit score and offer limit. Choose the amount and tenure in chat, then confirm the phone and address you entered. The simulation uses the same underwriting rules as the preset profiles. If it requests evidence, download and upload the payslip generated for that application. No personal identity document is needed.
+**Frontend**
 
-1. Say **Hello**, then **I need 300000 for course fees**.
-2. Use demo PAN **ABCDE1234F** and monthly income **60000**. Compare the 24- and 36-month quotes. Select **24 months** and confirm with **yes**.
-3. Enter registered phone **0000000001** and address **11 Demo Lane**.
-4. The offer is INR 200,000, so underwriting requests evidence. Download the sample salary slip from chat, then select that PDF in the upload control. The demo verifies the exact customer-specific fixture and obtains the salary from the synthetic payroll record.
-5. Download the sanction PDF. Refreshing the same browser tab restores the decision.
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
 
-For instant approval use the same customer and INR 100,000. For a score rejection use **LOWSC0000X**, phone **0000000003**, address **7 Model Street** and INR 100,000. The fixture file `backend/app/services/customers.csv` contains all ten profiles. Unknown prospects stop at verification. The sales demo uses a fixed annual rate of 14%.
+Open the [local chatbot](http://localhost:5173) or [interactive API docs](http://localhost:8000/docs). For hosting, set `VITE_API_URL` to the API origin, `ALLOWED_ORIGIN` to the frontend origin and `DATABASE_URL` to the shared database URL.
 
-## Policy and persistence
-
-Both entry points invoke the graph in `backend/app/agents/loan_graph.py`. After KYC, a score below 700 or a request above twice the offer limit rejects. A qualifying request within the limit approves instantly. The intermediate band pauses for a slip and approves only when EMI is at most half the verified monthly salary. EMI is rounded half-up to paise.
-
-The SQL application record stores the offer and score used when requesting evidence. Upload resumes the credit node from that snapshot. Approved terms and PDF bytes commit together. Optional direct-API request IDs deduplicate submissions. Chat uses revision checks and a per-session write lease. Browser sessions and application IDs are bearer capabilities intended for synthetic data. Use PostgreSQL and authenticated customer ownership before handling real applications.
-
-## API
-
-FastAPI serves interactive contracts at `/docs`. The mock systems are at `/api/mock/crm/{pan}`, `/api/mock/offers/{pan}` and `/api/mock/bureau/{pan}`. For direct applications send PAN, phone, address, amount, tenure and monthly income to `POST /api/apply-loan`. A pending response includes its application ID. Upload the demo PDF using multipart field `file` at `POST /api/applications/{id}/salary-slip`. Approved documents are served from `GET /api/applications/{id}/letter`.
-
-## Verification and recording
-
-- Backend: from `backend`, run `python -m pytest -q`.
-- Frontend: from `frontend`, run `npm run lint` and `npm run build`.
-- Browser: from `frontend`, run `npm run test:e2e` with Chrome installed. The suite starts isolated local servers and a temporary SQLite database. Set `LENDBOT_PYTHON` to the Python interpreter with backend dependencies if needed.
-- Recording: run `npx playwright install ffmpeg`, set `RECORD_DEMO=1`, and run the browser suite. Videos are written to `frontend/test-results`.
-
-For hosting, set frontend build variable `VITE_API_URL` to the backend origin, backend `ALLOWED_ORIGIN` to the frontend origin, and `DATABASE_URL` to a persistent PostgreSQL database shared by all replicas. A legacy `LEGACY_REDIS_URL` is optional for importing active sessions from earlier versions. Configure it only during that migration.
-
-## Concurrency checks
-
-Run `python -m pytest -q -s tests/test_concurrent_workflow.py` from `backend`.
-The suite submits one application eight times concurrently, races two chat turns
-at the same revision, and exercises 32 independent greeting turns with eight workers.
-The last case prints local p95 latency including the in-process HTTP test client.
-Structured logs report chat-turn duration and stage, campaign, and salary-evidence
-processing duration and outcome. Production traffic and hosted database performance
-require separate measurement.
+**Checks:** From `backend`, run `.\.venv\Scripts\python -m pytest -q`. From `frontend`, run `npm run lint` and `npm run build`. For Playwright browser tests, install Chrome, set `LENDBOT_PYTHON` to the backend virtual environment’s Python executable and run `npm run test:e2e`.
