@@ -1,3 +1,4 @@
+from app.services.applications import load_application
 from uuid import uuid4
 from typing import Dict, Any, List
 
@@ -112,6 +113,14 @@ class ChatAgent:
         history = history or []
         stage = state.get("stage", "COLLECT_PAN")
 
+        if stage == "AWAITING_SALARY_SLIP" and state.get("application_id"):
+            record = load_application(state["application_id"])
+            if record and record["decision"]["result"]["status"] != "HOLD":
+                state["decision"] = record["decision"]
+                state["stage"] = stage = "DONE"
+                if record["decision"]["stage"] == "SANCTION":
+                    state["agents_consulted"] = list(dict.fromkeys(state.get("agents_consulted", []) + ["SANCTION"]))
+
         # NLP analysis
         intent, confidence = self.intent_classifier.predict(message)
         entities: ExtractedEntities = self.entity_extractor.extract(
@@ -199,7 +208,7 @@ class ChatAgent:
                     "reply": reply,
                     "state": state,
                     "decision": decision,
-                    "sanction_letter_url": f"/static/outputs/sanction_{sanction_id}.txt",
+                    "sanction_letter_url": result["document"]["download_url"] if result.get("document") else f"/static/outputs/sanction_{sanction_id}.txt",
                 }
 
             reply = (

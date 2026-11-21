@@ -40,3 +40,15 @@ async def get_chat_history(session_id: str):
     sessions = get_session_store()
     history = sessions.get_history(session_id)
     return {"session_id": session_id, "messages": history}
+
+@router.get("/chat/{session_id}")
+def restore_chat(session_id: str):
+    sessions = get_session_store()
+    state = sessions.get(session_id)
+    decision = state.get("decision", {})
+    if state.get("application_id"):
+        from app.services.applications import load_application
+        row = load_application(state["application_id"])
+        if row and row["decision"]:
+            decision = row["decision"]
+    return {"history": sessions.get_history(session_id), "decision": decision}

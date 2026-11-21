@@ -77,6 +77,13 @@ class MasterAgent:
         return await self.run_application(row)
 
     async def run_application(self, row, **evidence):
+        digest = evidence.pop("slip_digest", None)
         state = await self.workflow.ainvoke(dict(row["inputs"], application_id=row["id"], **evidence))
         decision = {"stage": state["stage"], "result": state["result"], "application_id": row["id"]}
-        return save_decision(row, decision)
+        if state["result"].get("status") == "HOLD":
+            customer = find_customer(row["inputs"]["pan"])
+            decision["sample_slip_url"] = f"/api/mock/slips/{customer.customer_id}.pdf"
+        if digest:
+            decision["slip_digest"] = digest
+        pdf = self.sanction_agent.render_pdf(state["result"]) if state["stage"] == "SANCTION" else None
+        return save_decision(row, decision, pdf)

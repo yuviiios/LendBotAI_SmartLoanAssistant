@@ -3,7 +3,7 @@ import os
 from functools import lru_cache
 from uuid import uuid4
 
-from sqlalchemy import Column, Integer, JSON, MetaData, String, Table, create_engine, select, update
+from sqlalchemy import Column, LargeBinary, Integer, JSON, MetaData, String, Table, create_engine, select, update
 from sqlalchemy.exc import IntegrityError
 
 metadata = MetaData()
@@ -14,6 +14,15 @@ applications = Table("loan_applications", metadata,
     Column("inputs", JSON, nullable=False),
     Column("decision", JSON),
 )
+
+
+letters = Table("sanction_documents", metadata,
+    Column("id", String(36), primary_key=True), Column("pdf", LargeBinary, nullable=False))
+
+
+def read_letter(application_id):
+    with database().connect() as conn:
+        return conn.execute(select(letters.c.pdf).where(letters.c.id == application_id)).scalar_one_or_none()
 
 
 @lru_cache
@@ -48,9 +57,11 @@ def open_application(inputs, request_key):
     return load_application(application_id)
 
 
-def save_decision(row, decision):
+def save_decision(row, decision, pdf=None):
     with database().begin() as conn:
-        conn.execute(update(applications).where(applications.c.id == row["id"],
+        changed = conn.execute(update(applications).where(applications.c.id == row["id"],
                      applications.c.revision == row["revision"]).values(
                      decision=decision, revision=row["revision"] + 1))
+        if changed.rowcount and pdf is not None:
+            conn.execute(letters.insert().values(id=row["id"], pdf=pdf))
     return load_application(row["id"])["decision"]

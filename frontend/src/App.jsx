@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [sessionId, setSessionId] = useState(crypto.randomUUID());
+  const [sessionId, setSessionId] = useState(() => sessionStorage.getItem("lendbot-session") || crypto.randomUUID());
+  const [pending, setPending] = useState(null);
   const [sanctionUrl, setSanctionUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [theme, setTheme] = useState(() => {
@@ -22,6 +23,45 @@ function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    sessionStorage.setItem("lendbot-session", sessionId);
+    const controller = new AbortController();
+    setIsLoading(true);
+    fetch(API_URL + "/api/chat/" + sessionId, { signal: controller.signal })
+      .then(response => response.ok ? response.json() : Promise.reject())
+      .then(data => {
+        setMessages(data.history.map(msg => ({role: msg.role === "user" ? "user" : "bot", text: msg.content})));
+        setPending(data.decision?.result?.status === "HOLD" ? data.decision : null);
+        setSanctionUrl(data.decision?.result?.document?.download_url || null);
+      })
+      .catch(() => {})
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
+    return () => controller.abort();
+  }, [sessionId]);
+
+  async function uploadSlip(file) {
+    if (!file || !pending || isLoading) return;
+    setIsLoading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch(API_URL + "/api/applications/" + pending.application_id + "/salary-slip",
+        { method: "POST", body });
+      const decision = await response.json();
+      if (!response.ok) throw new Error(decision.detail || "Upload failed. Please try again.");
+      const result = decision.result;
+      setMessages(previous => [...previous, {role: "bot", text: result.status === "SANCTIONED"
+        ? "Your salary was verified and your loan was approved. Your sanction letter is ready."
+        : result.reason}]);
+      setSanctionUrl(result.document?.download_url || null);
+      setPending(null);
+    } catch (error) {
+      setMessages(previous => [...previous, {role: "bot", text: error.message}]);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   function toggleTheme() {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
@@ -52,10 +92,11 @@ function App() {
         { role: "bot", text: data.reply || "Something went wrong." },
       ]);
 
+      setPending(data.state?.stage === "AWAITING_SALARY_SLIP" ? data.state.decision : null);
       if (data.sanction_letter_url) {
         setSanctionUrl(data.sanction_letter_url);
       }
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         { role: "bot", text: "Server error. Please try again later." },
@@ -67,6 +108,7 @@ function App() {
 
   function resetChat() {
     setMessages([]);
+    setPending(null);
     setSanctionUrl(null);
     setSessionId(crypto.randomUUID());
     setIsLoading(false);
@@ -92,7 +134,7 @@ function App() {
             >
               {theme === "light" ? "🌙" : "☀️"}
             </button>
-            <button className="new-chat-btn" onClick={resetChat}>
+            <button className="new-chat-btn" onClick={resetChat} disabled={isLoading}>
               New Chat
             </button>
           </div>
@@ -128,6 +170,15 @@ function App() {
             </div>
           )}
 
+          {pending && (
+            <div className="sanction-card">
+              <a href={API_URL + pending.sample_slip_url}>Download demo salary slip</a>
+              <label>Upload salary slip (PDF)
+                <input type="file" accept="application/pdf" disabled={isLoading}
+                  onChange={event => { uploadSlip(event.target.files[0]); event.target.value = ""; }} />
+              </label>
+            </div>
+          )}
           {sanctionUrl && (
             <div className="sanction-card">
               <strong>✅ Sanction Letter Ready</strong>
