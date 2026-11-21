@@ -1,59 +1,65 @@
+import asyncio
 from typing import Literal
-from fastapi import APIRouter
-from pydantic import BaseModel
+from uuid import NAMESPACE_URL, uuid5
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from app.dependencies import get_chat_agent, get_session_store
+from app.services.applications import load_application
+from app.services.session_store import TurnConflict
 
 router = APIRouter()
 
 
 class ChatRequest(BaseModel):
     campaign: Literal["education", "travel", "personal loan"] | None = None
-    session_id: str
-    message: str
+    session_id: str = Field(min_length=1, max_length=128)
+    revision: int | None = Field(default=None, ge=0)
+    message: str = Field(min_length=1, max_length=2000)
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest):
+def chat(req: ChatRequest):
     sessions = get_session_store()
-    chat_agent = get_chat_agent()
-
-    state = sessions.get(req.session_id) or {}
-
-    if req.campaign and not state:
-        state["campaign"] = req.campaign
-
-    # Store user message in conversation history
-    sessions.append_message(req.session_id, "user", req.message)
-
-    # Pass conversation history to agent for context-aware responses
-    conversation_history = sessions.get_history(req.session_id)
-    result = await chat_agent.handle_message(req.message, state, conversation_history)
-
-    if "state" in result:
-        sessions.save(req.session_id, result["state"])
-
-    # Store bot reply in conversation history
-    if "reply" in result:
-        sessions.append_message(req.session_id, "assistant", result["reply"])
-
-    return result
+    try:
+        row, owner = sessions.begin(req.session_id, req.revision)
+        state = row["state"]
+        if req.campaign and not state:
+            state["campaign"] = req.campaign
+        # Replaying a confirmed turn after a crash reopens the same application.
+        state.setdefault("submission_key", str(uuid5(NAMESPACE_URL, f"{req.session_id}/{row['revision']}")))
+        history = row["history"] + [{"role": "user", "content": req.message}]
+        try:
+            result = asyncio.run(get_chat_agent().handle_message(req.message, state, history))
+        except Exception:
+            sessions.finish(req.session_id, owner)
+            raise
+        history.append({"role": "assistant", "content": result["reply"]})
+        revision = row["revision"] + 1
+        sessions.finish(req.session_id, owner, state=result["state"], history=history[-50:], revision=revision)
+        return dict(result, revision=revision)
+    except TurnConflict:
+        raise HTTPException(409, "Another turn updated this chat. Refresh to see the latest reply.")
 
 
 @router.get("/chat/history/{session_id}")
-async def get_chat_history(session_id: str):
-    sessions = get_session_store()
-    history = sessions.get_history(session_id)
-    return {"session_id": session_id, "messages": history}
+def get_chat_history(session_id: str):
+    return {"session_id": session_id, "messages": get_session_store().snapshot(session_id)["history"]}
+
 
 @router.get("/chat/{session_id}")
 def restore_chat(session_id: str):
-    sessions = get_session_store()
-    state = sessions.get(session_id)
+    row = get_session_store().snapshot(session_id)
+    state, history = row["state"], row["history"]
     decision = state.get("decision", {})
     if state.get("application_id"):
-        from app.services.applications import load_application
-        row = load_application(state["application_id"])
-        if row and row["decision"]:
-            decision = row["decision"]
-    return {"history": sessions.get_history(session_id), "decision": decision}
+        application = load_application(state["application_id"])
+        if application and application["decision"]:
+            latest = application["decision"]
+            if latest != decision and latest.get("slip_digest"):
+                reply = ("Your salary was verified and the sanction letter is ready." if latest["stage"] == "SANCTION"
+                         else latest["result"]["reason"])
+                history = history + [{"role": "assistant", "content": reply}]
+            decision = latest
+    return {"history": history, "decision": decision, "revision": row["revision"]}

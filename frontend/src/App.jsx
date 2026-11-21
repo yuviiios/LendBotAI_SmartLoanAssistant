@@ -9,10 +9,11 @@ function App() {
   const [sessionId, setSessionId] = useState(() => sessionStorage.getItem("lendbot-session") || crypto.randomUUID());
   const [pending, setPending] = useState(null);
   const [sanctionUrl, setSanctionUrl] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("lendbot-theme") || "light";
   });
+  const revision = useRef(0);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -27,10 +28,10 @@ function App() {
   useEffect(() => {
     sessionStorage.setItem("lendbot-session", sessionId);
     const controller = new AbortController();
-    setIsLoading(true);
     fetch(API_URL + "/api/chat/" + sessionId, { signal: controller.signal })
       .then(response => response.ok ? response.json() : Promise.reject())
       .then(data => {
+        revision.current = data.revision;
         setMessages(data.history.map(msg => ({role: msg.role === "user" ? "user" : "bot", text: msg.content})));
         setPending(data.decision?.result?.status === "HOLD" ? data.decision : null);
         setSanctionUrl(data.decision?.result?.document?.download_url || null);
@@ -52,7 +53,8 @@ function App() {
       if (!response.ok) throw new Error(decision.detail || "Upload failed. Please try again.");
       const result = decision.result;
       setMessages(previous => [...previous, {role: "bot", text: result.status === "SANCTIONED"
-        ? "Your salary was verified and your loan was approved. Your sanction letter is ready."
+        ? "Your salary was verified. Approved for ₹" + result.terms.loan_amount.toLocaleString("en-IN") +
+          " over " + result.terms.tenure_months + " months. Monthly EMI: ₹" + result.approved_emi.toLocaleString("en-IN") + "."
         : result.reason}]);
       setSanctionUrl(result.document?.download_url || null);
       setPending(null);
@@ -80,7 +82,7 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          session_id: sessionId,
+          session_id: sessionId, revision: revision.current,
           message: input,
           campaign: ["education", "travel"].includes(new URLSearchParams(location.search).get("campaign"))
             ? new URLSearchParams(location.search).get("campaign") : null,
@@ -88,6 +90,8 @@ function App() {
       });
 
       const data = await response.json();
+      if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Chat request failed.");
+      revision.current = data.revision;
 
       setMessages((prev) => [
         ...prev,
@@ -98,10 +102,10 @@ function App() {
       if (data.sanction_letter_url) {
         setSanctionUrl(data.sanction_letter_url);
       }
-    } catch {
+    } catch (error) {
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: "Server error. Please try again later." },
+        { role: "bot", text: error.message },
       ]);
     } finally {
       setIsLoading(false);
@@ -112,8 +116,9 @@ function App() {
     setMessages([]);
     setPending(null);
     setSanctionUrl(null);
+    revision.current = 0;
+    setIsLoading(true);
     setSessionId(crypto.randomUUID());
-    setIsLoading(false);
   }
 
   return (

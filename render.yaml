@@ -5,21 +5,11 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
     envVars:
-      - key: GEMINI_API_KEY
-        sync: false
       - key: ALLOWED_ORIGIN
         sync: false
-      - key: REDIS_URL
-        fromService:
-          name: loanchatbot-redis
-          type: redis
-          property: connectionString
+      - key: DATABASE_URL
+        sync: false
       - key: PYTHON_VERSION
-        value: "3.11"
-
-databases:
-  - type: redis
-    name: loanchatbot-redis
-    plan: free
-    maxmemoryPolicy: allkeys-lru
+        value: "3.11.11"

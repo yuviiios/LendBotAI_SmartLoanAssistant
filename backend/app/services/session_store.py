@@ -1,69 +1,66 @@
+"""Durable chat turns with a short, per-session write lease."""
 import json
 import os
-import redis
-from typing import Any
+import time
+from uuid import uuid4
 
-SESSION_TTL_SECONDS = 60 * 60 * 2  # 2 hours
+import redis
+from sqlalchemy import Column, Float, Integer, JSON, String, Table, select, update
+from sqlalchemy.exc import IntegrityError
+
+from app.services.applications import database, metadata
+
+chats = Table("loan_chats", metadata,
+    Column("id", String(128), primary_key=True), Column("state", JSON, nullable=False),
+    Column("history", JSON, nullable=False), Column("revision", Integer, nullable=False),
+    Column("owner", String(36)), Column("busy_until", Float, nullable=False),
+)
+
+
+class TurnConflict(Exception):
+    pass
 
 
 class SessionStore:
-    def __init__(self):
-        redis_url = os.getenv("REDIS_URL")
-        self.client = redis.from_url(
-            redis_url,
-            decode_responses=True,
-        )
+    def snapshot(self, session_id):
+        with database().connect() as conn:
+            row = conn.execute(select(chats).where(chats.c.id == session_id)).mappings().first()
+        if row:
+            return dict(row)
+        state, history = {}, []
+        if url := os.getenv("REDIS_URL"):
+            # Import still-active sessions from the previous Redis-only release.
+            client = redis.from_url(url, socket_timeout=2, socket_connect_timeout=2)
+            try:
+                old_state, old_history = client.mget(f"session:{session_id}", f"history:{session_id}")
+                state, history = json.loads(old_state or "{}"), json.loads(old_history or "[]")
+            finally:
+                client.close()
+        return dict(id=session_id, state=state, history=history, revision=0, busy_until=0)
 
-    def get(self, session_id: str) -> dict:
-        try:
-            data = self.client.get(f"session:{session_id}")
-            return json.loads(data) if data else {}
-        except Exception as e:
-            print(f"Redis GET Error: {e}")
-            return {}
+    def begin(self, session_id, expected_revision):
+        row = self.snapshot(session_id)
+        if "owner" not in row:
+            try:
+                with database().begin() as conn:
+                    conn.execute(chats.insert().values(**row))
+            except IntegrityError:
+                row = self.snapshot(session_id)
+        if expected_revision is not None and expected_revision != row["revision"]:
+            raise TurnConflict
+        owner = str(uuid4())
+        now = time.time()
+        with database().begin() as conn:
+            changed = conn.execute(update(chats).where(chats.c.id == session_id,
+                chats.c.revision == row["revision"], chats.c.busy_until <= now).values(
+                owner=owner, busy_until=now+60))
+            if not changed.rowcount:
+                raise TurnConflict
+        return row, owner
 
-    def save(self, session_id: str, state: dict):
-        try:
-            self.client.setex(
-                name=f"session:{session_id}",
-                time=SESSION_TTL_SECONDS,
-                value=json.dumps(state),
-            )
-        except Exception as e:
-            print(f"Redis SAVE Error: {e}")
-
-    # ----- Conversation Memory -----
-
-    def get_history(self, session_id: str) -> list[dict]:
-        try:
-            data = self.client.get(f"history:{session_id}")
-            return json.loads(data) if data else []
-        except Exception as e:
-            print(f"Redis GET history Error: {e}")
-            return []
-
-    def append_message(self, session_id: str, role: str, content: str):
-        try:
-            history = self.get_history(session_id)
-            history.append({"role": role, "content": content})
-            # Keep last 50 messages to avoid bloating Redis
-            if len(history) > 50:
-                history = history[-50:]
-            self.client.setex(
-                name=f"history:{session_id}",
-                time=SESSION_TTL_SECONDS,
-                value=json.dumps(history),
-            )
-        except Exception as e:
-            print(f"Redis SAVE history Error: {e}")
-
-    def get_summary_context(self, session_id: str, last_n: int = 10) -> str:
-        history = self.get_history(session_id)
-        if not history:
-            return ""
-        recent = history[-last_n:]
-        lines = []
-        for msg in recent:
-            prefix = "User" if msg["role"] == "user" else "Assistant"
-            lines.append(f"{prefix}: {msg['content']}")
-        return "\n".join(lines)
+    def finish(self, session_id, owner, **values):
+        with database().begin() as conn:
+            changed = conn.execute(update(chats).where(chats.c.id == session_id,
+                chats.c.owner == owner).values(owner=None, busy_until=0, **values))
+            if not changed.rowcount:
+                raise TurnConflict

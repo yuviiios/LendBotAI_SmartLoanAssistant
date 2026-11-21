@@ -64,6 +64,7 @@ class ChatAgent:
             return base_reply
 
     def _answer_question(self, message: str, history: List[Dict] = None) -> str:
+        product_details = ""
         try:
             product_info = self.master_agent.get_product_info()
             products = product_info.get("products", [])
@@ -95,7 +96,7 @@ class ChatAgent:
                 user_message=message,
             )
         except Exception:
-            return "Our personal loans offer up to 20 lakhs at 14% interest for 6-60 months."
+            return product_details or "Our personal loans offer up to 20 lakhs at 14% interest for 6-60 months."
 
     def _format_history(self, history: List[Dict]) -> str:
         lines = []
@@ -202,15 +203,10 @@ class ChatAgent:
                 agents_consulted.append("SALES")
                 state["agents_consulted"] = agents_consulted
             reply = self._answer_question(message, history)
-            return {"reply": reply, "state": state}
-
-        if intent == Intent.GREETING and stage == "COLLECT_PAN":
-            base = (
-                "Hello! I'm your loan assistant. "
-                "I can help you apply for a personal loan. "
-                "To get started, please share your PAN card number."
-            )
-            return {"reply": self._llm_rephrase(base, history), "state": state}
+            prompts = {"COLLECT_INCOME": "What is your monthly income?", "COLLECT_TENURE": "Which tenure would you like?",
+                       "COLLECT_PHONE": "What phone is registered on the profile?", "COLLECT_ADDRESS": "What is the registered address?",
+                       "HUMAN_REVIEW": "Would you like to confirm the terms or change them?"}
+            return {"reply": reply + " " + prompts.get(stage, ""), "state": state}
 
         if stage == "AWAITING_SALARY_SLIP" and intent != Intent.MODIFY:
             decision = state["decision"]
@@ -428,15 +424,9 @@ class ChatAgent:
                     return {"reply": decision["result"]["reason"], "state": state, "decision": decision}
                 state["stage"] = "DONE"
             except Exception:
-                state["stage"] = "COLLECT_PAN"
-                state.pop("pan", None)
-                state.pop("monthly_income", None)
-                state.pop("loan_amount", None)
-                state.pop("tenure_months", None)
+                state["stage"] = "HUMAN_REVIEW"
                 state.pop("human_confirmed", None)
-                state["agents_consulted"] = []
-                base = "Something went wrong while processing your application. Let us start again. Please share your PAN card number."
-                return {"reply": self._llm_rephrase(base, history), "state": state}
+                return {"reply": "Processing was interrupted. Your terms are saved. Confirm again to retry.", "state": state}
 
             return await self.handle_message("", state, history)
 

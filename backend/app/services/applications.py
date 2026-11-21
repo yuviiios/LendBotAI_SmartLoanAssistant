@@ -28,12 +28,21 @@ def read_letter(application_id):
 @lru_cache
 def engine(url: str):
     db = create_engine(url, pool_pre_ping=True)
-    metadata.create_all(db)
+    with db.begin() as conn:
+        # Concurrent cold starts must agree on the schema before accepting a turn.
+        if db.dialect.name == "sqlite":
+            conn.exec_driver_sql("BEGIN IMMEDIATE")
+        elif db.dialect.name == "postgresql":
+            conn.exec_driver_sql("SELECT pg_advisory_xact_lock(76120419)")
+        metadata.create_all(conn)
     return db
 
 
 def database():
-    return engine(os.getenv("DATABASE_URL", "sqlite:///lendbot.db"))
+    url = os.getenv("DATABASE_URL", "sqlite:///lendbot.db")
+    if url.startswith(("postgres://", "postgresql://")):
+        url = "postgresql+psycopg://" + url.split("://", 1)[1]
+    return engine(url)
 
 
 def load_application(application_id):
