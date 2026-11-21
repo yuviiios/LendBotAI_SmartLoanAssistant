@@ -15,10 +15,17 @@ from app.api.mock_routes import router as mock_router
 app = FastAPI(title="Loan Processing System")
 
 allowed_origin = os.getenv("ALLOWED_ORIGIN")
+allowed_origins = [allowed_origin] if allowed_origin else []
+if allowed_origin == "https://loan-chatbot-nine.vercel.app":
+    # The deployed consultation is also accessible through these Vercel aliases.
+    allowed_origins.extend([
+        "https://loan-chatbot-git-main-yuviiios-projects.vercel.app",
+        "https://loan-chatbot-ow58uhaiw-yuviiios-projects.vercel.app",
+    ])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[allowed_origin],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
