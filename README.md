@@ -11,9 +11,23 @@ LendBot simulates a personal loan application for an Indian NBFC. In one chat, a
 
 ## Architecture and stack
 
-**React chat (Vite, Vercel) → FastAPI (Python, Render) → Master Agent (LangGraph) → Sales → KYC → Credit → Sanction PDF**
+```mermaid
+flowchart TD
+    Chat["React chat on Vercel · preset or custom profile"] --> API["FastAPI on Render"]
+    API -->|Confirmed application| Master["Master Agent · LangGraph"]
+    Master --> Sales["Sales · validate amount and tenure"]
+    Sales -->|Valid terms| KYC["KYC · match phone and address"]
+    Sales -->|Invalid terms| Stop["Return reason to chat"]
+    KYC -->|Verification failed| Stop
+    KYC -->|Verified| Credit{"Credit · evaluate score and offer"}
+    Credit -->|Reject| Stop
+    Credit -->|Salary evidence needed| Slip["Customer uploads sample payslip"]
+    Slip -->|Resume with verified salary| Credit
+    Credit -->|Approve| Sanction["Sanction agent · generate PDF"]
+    Sanction --> Download["Customer downloads letter in chat"]
+```
 
-Sales checks the amount and tenure. KYC matches contact details against the simulated CRM. Credit evaluates the simulated bureau score and offer limit. The Sanction worker generates approved letters with ReportLab. SQLAlchemy stores chat history, decisions and PDFs in SQLite locally, with PostgreSQL supported for shared deployments.
+Vite builds the frontend. ReportLab generates sanction letters. SQLAlchemy stores chat history, decisions and PDFs in SQLite locally, with PostgreSQL supported for shared deployments.
 
 Scikit-learn classifies chat intent. Gemini is optional for conversational wording. The underwriting rules run in Python.
 
