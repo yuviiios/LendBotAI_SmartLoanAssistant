@@ -223,7 +223,8 @@ class ChatAgent:
             state.pop("submission_key", None)
             if stage == "AWAITING_SALARY_SLIP":
                 from app.services.applications import cancel_pending
-                cancel_pending(state.pop("application_id"))
+                if old_id := state.pop("application_id", None):
+                    cancel_pending(old_id)
                 state.pop("decision", None)
                 state.pop("human_confirmed", None)
                 state["stage"] = "HUMAN_REVIEW"

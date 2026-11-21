@@ -1,3 +1,5 @@
+from time import perf_counter
+from app.core.logger import StructuredLogger
 from hashlib import sha256
 from uuid import UUID
 
@@ -10,6 +12,7 @@ from app.services.customer_directory import find_customer
 from app.services.demo_slips import SALARIES, sample_slip
 
 router = APIRouter()
+logger = StructuredLogger("SalaryEvidence")
 MAX_SLIP_BYTES = 2 * 1024 * 1024
 
 
@@ -25,6 +28,7 @@ def demo_slip(customer_id: str):
 
 @router.post("/applications/{application_id}/salary-slip")
 async def submit_slip(application_id: UUID, file: UploadFile = File()):
+    started = perf_counter()
     row = load_application(str(application_id))
     if not row or not row["decision"]:
         raise HTTPException(404, "Application unavailable")
@@ -40,8 +44,11 @@ async def submit_slip(application_id: UUID, file: UploadFile = File()):
         return decision
     if decision["result"]["status"] != "HOLD":
         raise HTTPException(409, "This application is not waiting for a salary slip.")
-    return await get_master_agent().run_application(row, verified_salary=SALARIES[customer.customer_id],
+    result = await get_master_agent().run_application(row, verified_salary=SALARIES[customer.customer_id],
         previous_credit=decision["result"], slip_digest=digest)
+    logger.info("salary_evidence_evaluated", result=result["result"]["status"],
+                elapsed_ms=round((perf_counter() - started) * 1000))
+    return result
 
 
 @router.get("/applications/{application_id}/letter")

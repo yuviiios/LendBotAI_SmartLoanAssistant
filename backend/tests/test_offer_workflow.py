@@ -42,3 +42,13 @@ async def test_chat_waits_for_evidence_instead_of_closing():
     assert result["state"]["stage"] == "AWAITING_SALARY_SLIP"
     assert result["decision"]["result"]["reason_code"] == "SALARY_SLIP_REQUIRED"
     assert "sanction_letter_url" not in result
+
+
+@pytest.mark.parametrize("phone,address", [("0000000001", "wrong address"), ("0000000002", "11 Demo Lane")])
+def test_contact_mismatch_cannot_be_sanctioned(phone, address):
+    result = TestClient(app).post("/api/apply-loan", json={
+        "pan": "ABCDE1234F", "phone": phone, "address": address, "monthly_income": 60000,
+        "loan_amount": 100000, "tenure_months": 24,
+    }).json()
+    assert result["stage"] == "KYC" and result["status"] == "FAILURE"
+    assert result["data"] is None

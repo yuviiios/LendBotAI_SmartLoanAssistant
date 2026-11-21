@@ -1,3 +1,5 @@
+> Historical design notes. The current implemented workflow, API, storage model and browser demo are documented in [README.md](README.md).
+
 # 🏗️ Complete Architecture Documentation
 
 ## 📊 Project Overview

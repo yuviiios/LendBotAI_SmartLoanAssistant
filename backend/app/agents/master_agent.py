@@ -20,7 +20,7 @@ class MasterAgent:
     # ----------------------------------------------------------
 
     def consult_sales(self, loan_amount: float, tenure_months: int, monthly_income: float) -> Dict[str, Any]:
-        logger.info("Sales agent consulted", loan_amount=loan_amount, tenure=tenure_months)
+        logger.info("Sales agent consulted")
         return self.sales_agent.process_request(
             loan_amount=loan_amount,
             tenure_months=tenure_months,

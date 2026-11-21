@@ -36,3 +36,13 @@ FastAPI serves interactive contracts at `/docs`. The mock systems are at `/api/m
 - Recording: run `npx playwright install ffmpeg`, set `RECORD_DEMO=1`, and run the browser suite. Videos are written to `frontend/test-results`.
 
 For hosting, set frontend build variable `VITE_API_URL` to the backend origin, backend `ALLOWED_ORIGIN` to the frontend origin, and `DATABASE_URL` to a persistent PostgreSQL database shared by all replicas. A legacy `REDIS_URL` is optional for importing active sessions from earlier versions. Configure it only during that migration.
+
+## Concurrency checks
+
+Run `python -m pytest -q -s tests/test_concurrent_workflow.py` from `backend`.
+The suite submits one application eight times concurrently, races two chat turns
+at the same revision, and exercises 32 independent greeting turns with eight workers.
+The last case prints local p95 latency including the in-process HTTP test client.
+Structured logs report chat-turn duration and stage, campaign, and salary-evidence
+processing duration and outcome. Production traffic and hosted database performance
+require separate measurement.
