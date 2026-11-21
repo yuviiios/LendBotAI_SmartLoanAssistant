@@ -4,11 +4,11 @@ End-to-end personal loan application system powered by multi-agent AI architectu
 
 ## Overview
 
-Customers start a chat, provide PAN/income/loan amount conversationally, and receive instant approval/rejection decisions. Backend uses specialized AI agents that collaborate at each stage:
+Customers start a chat, provide PAN/income/loan amount conversationally, and receive approval, rejection or a request for salary evidence. Backend uses specialized AI agents that collaborate at each stage:
 - **Sales Agent** explains products, validates loan parameters early
 - **KYC Agent** validates PAN format real-time, verifies identity
 - **Credit Agent** scores, calculates EMI, applies eligibility rules
-- **Sanction Agent** generates PDF sanction letters
+- **Sanction Agent** generates text sanction letters
 
 All loan logic is deterministic (no LLM in financial decisions). LLM only handles conversation naturalness.
 
@@ -53,7 +53,7 @@ flowchart TD
 1. User provides PAN → KYC Agent validates format immediately
 2. User provides income → Sales Agent context
 3. User provides loan amount & tenure → Sales Agent validates parameters
-4. User confirms → all agents run sequentially (Sales → KYC → Credit → Sanction)
+4. User confirms → the Master routes through Sales, KYC and Credit, then calls Sanction on approval
 5. Result: approval/rejection + downloadable sanction letter
 
 ## Quick Start
@@ -86,103 +86,34 @@ REDIS_URL=redis://localhost:6379
 ALLOWED_ORIGIN=http://localhost:5173
 ```
 
-## Agent Collaboration Example
+## Synthetic offers and underwriting
 
-**Conversation flow:**
-```
-User: "I want a loan"
-→ ChatAgent: Asks for PAN
+The CRM, offer mart and bureau share ten synthetic profiles in
+`backend/app/services/customers.csv`. Prospect records represent campaign leads
+with seeded offers. An unknown PAN stops at verification. The mock systems
+expose read-only views at `/api/mock/crm/{pan}`, `/api/mock/offers/{pan}` and
+`/api/mock/bureau/{pan}`. Workers read the same records in-process.
 
-User: "ABCDE1234F"
-→ KYC Agent: Validates format ✓
-→ ChatAgent: Asks for income
+After product and KYC checks, both chat and the direct application API use policy
+`offer-v1`. Scores below 700 and requests above twice the offer limit are rejected.
+Eligible requests up to the limit qualify immediately. Requests above the limit
+through twice the limit require a salary slip. The policy compares EMI rounded
+half-up to the nearest paise with half the verified monthly salary, accepting equality.
+The deprecated client flag `is_preapproved` and self-reported income cannot satisfy this check.
 
-User: "₹50,000"
-→ Sales Agent: Acknowledges, continues
+| Demo PAN | Amount | Expected result |
+|---|---:|---|
+| ABCDE1234F | 200000 | Instant approval |
+| ABCDE1234F | 200001 | Salary slip required |
+| ABCDE1234F | 400001 | Above maximum |
+| LOWSC0000X | 100000 | Score below threshold |
 
-User: "I need ₹5 lakh for 24 months"
-→ Sales Agent: Validates parameters ✓
-→ ChatAgent: Shows review summary
-
-User: "Yes, confirm"
-→ Sales Agent: Build loan request
-→ KYC Agent: Full verification
-→ Credit Agent: Score (780), EMI calc, eligibility check ✓
-→ Sanction Agent: Generate sanction letter
-→ ChatAgent: Approval + download link
-```
-
-## Test PANs
-
-| PAN | Score | Docs | Result |
-|---|---|---|---|
-| `ABCDE1234F` | 780 | ✓ Complete | **Approved** |
-| `PQRSX9999Z` | 720 | Missing payslip | **Hold** |
-| `LOWSC0000X` | 650 | N/A | **Rejected** (low score) |
-| Any other | N/A | N/A | **Failed** (KYC) |
-
-Try: Loan ₹5,00,000 @ 24 months with income ₹50,000
+Use 24 months for these examples. A pending application returns `PENDING` from
+`POST /api/apply-loan` or `AWAITING_SALARY_SLIP` in chat. Phase 1 implements
+the policy and pending state. Upload/resume and PDF letters are later milestones.
+The current identity check looks up a seeded PAN. Phone and address are available
+in the CRM fixture for the upcoming KYC conversation.
 
 ## Testing
 
-```bash
-cd backend
-pytest -v                    # Run all tests
-pytest tests/test_chat_agent.py -v  # Specific test file
-```
-
-22 tests across 6 files covering agents, NLP, APIs, and full flows.
-
-## Loan Decision Logic
-
-**Eligibility rules (sequential):**
-
-1. **Credit Score Check**
-   - Score ≥750 → AUTO_APPROVE
-   - 700–749 → CONDITIONAL_APPROVE
-   - <700 → REJECT (low credit)
-
-2. **EMI Affordability**
-   - EMI = `loan_amount × r × (1+r)^n / ((1+r)^n - 1)`
-   - where r = interest_rate/12/100, n = tenure_months
-   - Max EMI: 50% of monthly income
-   - Fails → REJECT
-
-3. **Income Cap**
-   - Loan max 2× monthly income
-   - Fails → REJECT
-
-4. **Document Verification**
-   - KYC verified ✓
-   - Score 700–749 needs payslip
-   - Fails → HOLD or ESCALATE
-
-5. **Final Decision**
-   - Auto-approve if all pass
-   - Generates sanction letter + EMI breakdown
-
-**Example:** PAN=ABCDE1234F, income=₹50k, loan=₹5L, tenure=24mo
-- Score: 780 → AUTO_APPROVE
-- EMI: ₹23,114 (46% of income) → PASS
-- Income check: 5L < 2×50k → PASS
-- Docs: verified → PASS
-- Result: **SANCTIONED** ✓
-
-## Why Mock Services?
-
-Project uses mock `CRMService` + `CreditScoreService` (not real APIs) for:
-- **Dev speed:** No external dep setup, deterministic test data
-- **Testing:** Reproduce edge cases (low score, missing docs) reliably
-- **Demo safety:** No real financial data exposure
-
-Swap mocks for real APIs (Experian credit, NSDL KYC, bank core) by updating service classes.
-
-## Project Status
-
-✅ Multi-agent architecture with real-time agent collaboration
-✅ Conversational state machine (6 stages)
-✅ Real-time parameter validation
-✅ Human-in-the-loop review before processing
-✅ Sanction letter generation
-✅ Deterministic loan logic (no LLM hallucination)
-⏳ Real external APIs (mock services for development)
+Run `python -m pytest -q` from `backend`.

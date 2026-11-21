@@ -157,6 +157,10 @@ class ChatAgent:
             )
             return {"reply": self._llm_rephrase(base, history), "state": state}
 
+        if stage == "AWAITING_SALARY_SLIP" and intent != Intent.MODIFY:
+            decision = state["decision"]
+            return {"reply": decision["result"]["reason"], "state": state, "decision": decision}
+
         if intent == Intent.OUT_OF_SCOPE and not entities.raw_matches and message.strip():
             base = (
                 "I can only help with personal loan applications. "
@@ -165,6 +169,10 @@ class ChatAgent:
             return {"reply": self._llm_rephrase(base, history), "state": state}
 
         if intent == Intent.MODIFY:
+            if stage == "AWAITING_SALARY_SLIP":
+                state.pop("decision", None)
+                state.pop("human_confirmed", None)
+                state["stage"] = "HUMAN_REVIEW"
             return self._handle_modify(message, state, entities, history)
 
         # =====================================================
@@ -327,65 +335,21 @@ class ChatAgent:
                 return self._show_review_summary(state, history)
 
             try:
-                pan = state["pan"]
-                loan_amount = state["loan_amount"]
-                tenure_months = state.get("tenure_months", 24)
-                monthly_income = state["monthly_income"]
-
-                # --- Sales Agent: validate & build request ---
-                if "SALES" not in agents_consulted:
-                    agents_consulted.append("SALES")
-                loan_request = self.master_agent.consult_sales(
-                    loan_amount, tenure_months, monthly_income
+                decision = await self.master_agent.process_loan_application(
+                    pan=state["pan"], loan_amount=state["loan_amount"],
+                    monthly_income=state["monthly_income"], tenure_months=state["tenure_months"],
                 )
-                if loan_request.get("status") == "REJECT":
-                    state["stage"] = "DONE"
-                    state["decision"] = {"stage": "SALES", "result": loan_request}
-                    state["agents_consulted"] = agents_consulted
-                    return await self.handle_message("", state, history)
-
-                # --- KYC Agent: full verification ---
-                if "KYC" not in agents_consulted:
-                    agents_consulted.append("KYC")
-                kyc_result = self.master_agent.consult_kyc(pan)
-                if kyc_result["status"] in ("FAILED", "INCOMPLETE"):
-                    state["stage"] = "DONE"
-                    state["decision"] = {"stage": "KYC", "result": kyc_result}
-                    state["agents_consulted"] = agents_consulted
-                    return await self.handle_message("", state, history)
-
-                documents = kyc_result.get("documents", {})
-
-                # --- Credit/Underwriting Agent: score & eligibility ---
-                if "CREDIT" not in agents_consulted:
-                    agents_consulted.append("CREDIT")
-                credit_decision = await self.master_agent.consult_credit(
-                    pan=pan,
-                    loan_amount=loan_amount,
-                    monthly_income=monthly_income,
-                    tenure=tenure_months,
-                    is_preapproved=False,
-                    documents={
-                        "payslip": documents.get("payslip", False),
-                        "kyc_verified": True,
-                    },
-                )
-
-                if credit_decision["status"] not in ("AUTO_APPROVE", "CONDITIONAL_APPROVE"):
-                    state["stage"] = "DONE"
-                    state["decision"] = {"stage": "CREDIT", "result": credit_decision}
-                    state["agents_consulted"] = agents_consulted
-                    return await self.handle_message("", state, history)
-
-                # --- Sanction/Document Agent: generate letter ---
-                if "SANCTION" not in agents_consulted:
-                    agents_consulted.append("SANCTION")
-                sanction_result = self.master_agent.consult_sanction(credit_decision)
-
-                state["stage"] = "DONE"
-                state["decision"] = {"stage": "SANCTION", "result": sanction_result}
+                for worker in ("SALES", "KYC", "CREDIT", "SANCTION"):
+                    if worker not in agents_consulted:
+                        agents_consulted.append(worker)
+                    if worker == decision["stage"]:
+                        break
+                state["decision"] = decision
                 state["agents_consulted"] = agents_consulted
-
+                if decision["result"].get("status") == "HOLD":
+                    state["stage"] = "AWAITING_SALARY_SLIP"
+                    return {"reply": decision["result"]["reason"], "state": state, "decision": decision}
+                state["stage"] = "DONE"
             except Exception:
                 state["stage"] = "COLLECT_PAN"
                 state.pop("pan", None)

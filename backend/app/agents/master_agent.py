@@ -1,4 +1,5 @@
 from typing import Dict, Any
+from app.services.customer_directory import find_customer
 from app.core.logger import StructuredLogger
 
 logger = StructuredLogger("MasterAgent")
@@ -27,19 +28,15 @@ class MasterAgent:
         logger.info("KYC agent consulted", pan=pan)
         return self.kyc_agent.verify_kyc(pan)
 
-    async def consult_credit(
-        self, pan: str, loan_amount: float, monthly_income: float,
-        tenure: int, is_preapproved: bool, documents: Dict[str, bool],
-    ) -> Dict[str, Any]:
-        logger.info("Credit agent consulted", pan=pan)
+    async def consult_credit(self, pan: str, loan_amount: float, tenure: int) -> dict:
+        customer = find_customer(pan)
         score = await self.credit_agent.fetch_credit_score(pan)
+        if customer is None or score is None:
+            return {"status": "ESCALATE", "reason_code": "MISSING_RECORD",
+                    "reason": "The offer or credit record could not be retrieved."}
         return self.credit_agent.evaluate_eligibility(
-            score=score,
-            loan_amount=loan_amount,
-            monthly_income=monthly_income,
-            tenure=tenure,
-            is_preapproved=is_preapproved,
-            documents=documents,
+            score=score, loan_amount=loan_amount, tenure=tenure,
+            preapproved_limit=customer.preapproved_limit,
         )
 
     def consult_sanction(self, credit_decision: Dict[str, Any]) -> Dict[str, Any]:
@@ -56,7 +53,7 @@ class MasterAgent:
         return self.sales_agent.validate_loan_parameters(loan_amount, tenure_months)
 
     # ----------------------------------------------------------
-    # Full pipeline — kept for /api/apply-loan direct endpoint
+    # Shared processing pipeline for confirmed chat and direct applications
     # ----------------------------------------------------------
 
     async def process_loan_application(
@@ -80,19 +77,8 @@ class MasterAgent:
         if kyc_result["status"] in ("FAILED", "INCOMPLETE"):
             return {"stage": "KYC", "result": kyc_result}
 
-        documents = kyc_result.get("documents", {})
-
-        # --- 3. Credit ---
         credit_decision = await self.consult_credit(
-            pan=pan,
-            loan_amount=loan_request["loan_amount"],
-            monthly_income=loan_request["monthly_income"],
-            tenure=loan_request["tenure_months"],
-            is_preapproved=is_preapproved,
-            documents={
-                "payslip": documents.get("payslip", False),
-                "kyc_verified": True,
-            },
+            pan, loan_request["loan_amount"], loan_request["tenure_months"]
         )
 
         if credit_decision["status"] not in ("AUTO_APPROVE", "CONDITIONAL_APPROVE"):

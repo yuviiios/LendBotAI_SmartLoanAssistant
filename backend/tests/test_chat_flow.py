@@ -1,10 +1,10 @@
 """Integration tests for the full chat flow with session memory + human-in-the-loop."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from app.agents.chat_agent import ChatAgent
-from app.agents.master_agent import MasterAgent
+from app.dependencies import get_master_agent
 
 
 @pytest.fixture
@@ -15,22 +15,8 @@ def mock_llm():
 
 
 @pytest.fixture
-def mock_master_agent():
-    agent = AsyncMock(spec=MasterAgent)
-    agent.process_loan_application.return_value = {
-        "stage": "SANCTION",
-        "result": {
-            "status": "SANCTIONED",
-            "sanction_id": "TEST001",
-            "approved_emi": 12500,
-        },
-    }
-    return agent
-
-
-@pytest.fixture
-def chat_agent(mock_master_agent, mock_llm):
-    return ChatAgent(master_agent=mock_master_agent, llm_service=mock_llm)
+def chat_agent(mock_llm):
+    return ChatAgent(master_agent=get_master_agent(), llm_service=mock_llm)
 
 
 class TestFullFlow:
@@ -58,7 +44,7 @@ class TestFullFlow:
         assert result["state"]["stage"] == "COLLECT_LOAN"
         state = result["state"]
 
-        # Step 4: Provide loan amount — use amount within 2x income for approval
+        # Step 4: Provide loan amount — use an amount within the seeded offer
         result = await chat_agent.handle_message("I need 80000", state, history)
         assert result["state"]["loan_amount"] == 80000
         assert result["state"]["stage"] == "COLLECT_TENURE"
@@ -187,9 +173,7 @@ class TestConversationMemory:
             {"role": "assistant", "content": "Thanks! What's your income?"},
         ]
 
-        await chat_agent.handle_message("50000 per month", state, history)
+        await chat_agent.handle_message("what is the interest rate?", state, history)
 
-        # LLM should have been called with history context
-        call_args = mock_llm.chat.call_args
-        assert "conversation" in call_args.kwargs.get("system_prompt", "").lower() or \
-               "conversation" in call_args[1].get("system_prompt", "").lower() if call_args[1] else True
+        mock_llm.chat.assert_called_once()
+        assert "Thanks! What's your income?" in mock_llm.chat.call_args.kwargs["system_prompt"]

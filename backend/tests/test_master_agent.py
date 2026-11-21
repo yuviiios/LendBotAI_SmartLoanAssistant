@@ -113,7 +113,7 @@ async def test_flow_stops_on_credit_rejection():
     )
 
     result = await master_agent.process_loan_application(
-        pan="LOWCREDIT1",
+        pan="LOWSC0000X",
         loan_amount=100000,
         tenure_months=24,
         monthly_income=60000,

@@ -55,5 +55,4 @@ def test_kyc_missing_documents():
 
     result = agent.verify_kyc("MISSINGDOC1")
 
-    assert result["status"] == "INCOMPLETE"
-    assert "payslip" in result["missing_documents"]
+    assert result["status"] == "VERIFIED"  # Salary evidence belongs to underwriting.

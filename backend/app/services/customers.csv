@@ -1,0 +1,11 @@
+customer_id,pan,name,age,city,phone,address,segment,current_loan_type,outstanding_principal,credit_score,preapproved_limit
+C001,ABCDE1234F,Asha Rao,32,Pune,0000000001,11 Demo Lane,existing,auto,180000,780,200000
+C002,PQRSX9999Z,Neel Shah,29,Ahmedabad,0000000002,24 Sample Road,prospect,none,0,720,75000
+C003,LOWSC0000X,Isha Sen,41,Kolkata,0000000003,7 Model Street,existing,home,1650000,650,150000
+C004,DEMOA0004A,Arun Nair,35,Kochi,0000000004,8 Sample Lane,existing,auto,95000,700,200000
+C005,DEMOB0005B,Meera Das,27,Guwahati,0000000005,15 Demo Road,prospect,none,0,699,150000
+C006,DEMOC0006C,Ravi Paul,39,Chennai,0000000006,29 Example Lane,existing,home,950000,804,350000
+C007,DEMOD0007D,Sara Ali,31,Hyderabad,0000000007,18 Mock Avenue,prospect,none,0,745,125000
+C008,DEMOE0008E,Dev Jain,46,Jaipur,0000000008,4 Demo Square,existing,personal,65000,756,250000
+C009,DEMOF0009F,Tara Roy,26,Delhi,0000000009,12 Sample Park,prospect,none,0,710,50000
+C010,DEMOG0010G,Kiran Sethi,37,Bengaluru,0000000010,20 Example Road,existing,auto,120000,815,400000

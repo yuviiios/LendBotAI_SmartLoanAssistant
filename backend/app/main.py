@@ -9,6 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from app.api.loan_routes import router as loan_router
 from app.api.chat_routes import router as chat_router
 
+from app.api.mock_routes import router as mock_router
+
 app = FastAPI(title="Loan Processing System")
 
 allowed_origin = os.getenv("ALLOWED_ORIGIN")
@@ -24,6 +26,7 @@ app.add_middleware(
 os.makedirs("app/static/outputs", exist_ok=True)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+app.include_router(mock_router, prefix="/api")
 app.include_router(loan_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 

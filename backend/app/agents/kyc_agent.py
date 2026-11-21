@@ -38,7 +38,7 @@ class KycAgent:
             return {"status": "FAILED", "reason": "KYC not verified"}
 
         documents = kyc_data.get("documents", {})
-        missing_docs = [doc for doc, present in documents.items() if not present]
+        missing_docs = [doc for doc, present in documents.items() if doc != "payslip" and not present]
 
         if missing_docs:
             logger.info("KYC incomplete", pan=pan, missing=missing_docs)
